@@ -138,7 +138,7 @@ class EnhancedSpeechService {
       }
 
       // Transcribe audio using OpenAI Whisper
-      final request = http.MultipartRequest('POST', Uri.parse('$_baseUrl'));
+      final request = http.MultipartRequest('POST', Uri.parse(_baseUrl));
       request.headers.addAll({
         'Authorization': 'Bearer $_apiKey',
       });

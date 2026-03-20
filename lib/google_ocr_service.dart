@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:google_mlkit_commons/google_mlkit_commons.dart';
 import 'package:tesseract_ocr/tesseract_ocr.dart';
 import 'package:path/path.dart' as p;
 
@@ -73,13 +72,8 @@ class GoogleOCRService {
         return 'Failed to process image';
       }
       
-      if (visionImage == null) {
-        debugPrint('InputImage is null');
-        return 'Failed to load image';
-      }
-      
       // Process the image
-      final RecognizedText recognizedText = await textRecognizer.processImage(visionImage!);
+      final RecognizedText recognizedText = await textRecognizer.processImage(visionImage);
       debugPrint('Image processed successfully');
       
       // Close recognizer to free resources

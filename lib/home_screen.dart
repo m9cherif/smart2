@@ -11,6 +11,8 @@ import 'package:smart_student_ai/app_customization_panel.dart';
 import 'package:smart_student_ai/student_progress_card.dart';
 import 'package:smart_student_ai/google_ocr_service.dart';
 import 'package:smart_student_ai/speech_service.dart';
+import 'package:smart_student_ai/ai_service.dart';
+import 'package:smart_student_ai/interactive_quiz_dialog.dart';
 import 'dictation_screen.dart';
 import 'planner_screen.dart';
 import 'revision_screen.dart';
@@ -27,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isLoadingProgress = true;
   List<Map<String, dynamic>> _openTasks = [];
   bool _isLoadingTasks = true;
-  
+
   // Learning Hub controllers and services
   final TextEditingController _inputTextController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
@@ -35,6 +37,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final SpeechService _speechService = SpeechService();
   bool _isProcessingImage = false;
   bool _isRecording = false;
+  bool _isGeneratingSummary = false;
+  bool _isGeneratingQuiz = false;
+  bool _isProcessingPDF = false;
 
   late AnimationController _heroAnimationController;
   late Animation<double> _heroOpacityAnimation;
@@ -55,15 +60,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // Debug: First try to get all tasks to see if any exist
       final allTasks = await DatabaseService.instance.getTasks();
       debugPrint('All tasks count: ${allTasks.length}');
-      
+
       // Then get open tasks
       final taskMaps = await DatabaseService.instance.getTodayTasks();
       debugPrint('Open tasks count: ${taskMaps.length}');
-      
+
       if (taskMaps.isNotEmpty) {
         debugPrint('First task: ${taskMaps.first}');
       }
-      
+
       if (mounted) {
         setState(() {
           _openTasks = taskMaps;
@@ -107,7 +112,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final result = await showDialog<String>(
       context: context,
       builder: (BuildContext context) {
-        final controller = TextEditingController()..text = _inputTextController.text;
+        final controller = TextEditingController()
+          ..text = _inputTextController.text;
         return AlertDialog(
           title: const Text('Type Your Text'),
           content: SizedBox(
@@ -152,21 +158,59 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (result != null && result.files.single.path != null) {
         final file = File(result.files.single.path!);
-        final text = await file.readAsString();
+
         setState(() {
-          _inputTextController.text = text;
+          _isProcessingPDF = true;
+          _inputTextController.clear();
         });
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('File loaded successfully')),
+            SnackBar(
+              content: Text('Processing file: ${file.path.split('/').last}'),
+              duration: const Duration(seconds: 2),
+            ),
           );
+        }
+
+        try {
+          // Extract text from the file (PDF or text)
+          final text = await AIService.extractTextFromFile(file);
+
+          setState(() {
+            _inputTextController.text = text;
+            _isProcessingPDF = false;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Text detected successfully'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (e) {
+          setState(() {
+            _isProcessingPDF = false;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error extracting text: $e')),
+            );
+          }
         }
       }
     } catch (e) {
+      setState(() {
+        _isProcessingPDF = false;
+      });
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading file: $e')));
       }
     }
   }
@@ -196,9 +240,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _isProcessingImage = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error processing image: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error processing image: $e')));
       }
     }
   }
@@ -216,18 +260,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Voice input completed')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Voice input completed')));
       }
     } catch (e) {
       setState(() {
         _isRecording = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error with voice input: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error with voice input: $e')));
       }
     }
   }
@@ -262,6 +306,170 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _generateSummary() async {
+    if (_inputTextController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter some text to summarize')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGeneratingSummary = true;
+    });
+
+    try {
+      final summary = await AIService.generateSummary(
+        _inputTextController.text,
+      );
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Text('Generated Summary'),
+                  const Spacer(),
+                  if (AIService.lastGeneratedSummary.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _showLastSummary();
+                      },
+                      icon: const Icon(Icons.history, size: 16),
+                      label: const Text(
+                        'View Last',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 32),
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(child: Text(summary)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingSummary = false;
+        });
+      }
+    }
+  }
+
+  void _showLastSummary() {
+    if (AIService.lastGeneratedSummary.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Text('Last Generated Summary'),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Text(AIService.lastGeneratedSummary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No previous summary found')),
+      );
+    }
+  }
+
+  Future<void> _generateQuiz() async {
+    if (_inputTextController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter some text to generate quiz'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGeneratingQuiz = true;
+    });
+
+    try {
+      final quizData = await AIService.generateQuiz(_inputTextController.text);
+
+      if (mounted && quizData.isNotEmpty) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return InteractiveQuizDialog(
+              questions: quizData,
+              onClose: () => Navigator.of(context).pop(),
+            );
+          },
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to generate quiz. Please try with different text.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingQuiz = false;
+        });
+      }
+    }
+  }
+
   void _initializeAnimations() {
     // Hero section animations
     _heroAnimationController = AnimationController(
@@ -269,21 +477,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
     );
 
-    _heroOpacityAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _heroAnimationController,
-      curve: Curves.easeOut,
-    ));
+    _heroOpacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _heroAnimationController, curve: Curves.easeOut),
+    );
 
-    _heroSlideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.2),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _heroAnimationController,
-      curve: Curves.easeOut,
-    ));
+    _heroSlideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _heroAnimationController,
+            curve: Curves.easeOut,
+          ),
+        );
 
     // Cards animations
     _cardsAnimationController = AnimationController(
@@ -422,19 +626,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             Row(
                               children: <Widget>[
                                 // Logo and title inline
-                                Image.asset(
-                                  'logo.png',
-                                  height: 32,
-                                  width: 32,
-                                ),
+                                Image.asset('logo.png', height: 32, width: 32),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     strings.heroTitle,
-                                    style: theme.textTheme.headlineMedium?.copyWith(
-                                      color: themeSpec.heroForeground,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: theme.textTheme.headlineMedium
+                                        ?.copyWith(
+                                          color: themeSpec.heroForeground,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
                                 ),
                                 const SizedBox(width: 16),
@@ -447,7 +648,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     shape: BoxShape.circle,
                                   ),
                                   child: IconButton(
-                                    onPressed: () => showAppCustomizationSheet(context),
+                                    onPressed: () =>
+                                        showAppCustomizationSheet(context),
                                     tooltip: strings.settingsTooltip,
                                     icon: Icon(
                                       Icons.tune_rounded,
@@ -461,7 +663,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             Text(
                               strings.heroSubtitle,
                               style: theme.textTheme.bodyLarge?.copyWith(
-                                color: colorScheme.onPrimary.withValues(alpha: 0.92),
+                                color: colorScheme.onPrimary.withValues(
+                                  alpha: 0.92,
+                                ),
                               ),
                             ),
                           ],
@@ -489,7 +693,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       elevation: 4,
                       shadowColor: colorScheme.primary.withValues(alpha: 0.2),
                       child: InkWell(
-                        onTap: () => _openModule(features[0].page), // Link to Study Planner
+                        onTap: () => _openModule(
+                          features[0].page,
+                        ), // Link to Study Planner
                         borderRadius: BorderRadius.circular(16),
                         child: Container(
                           decoration: BoxDecoration(
@@ -513,10 +719,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       ),
                                       decoration: BoxDecoration(
                                         color: colorScheme.primary,
-                                        borderRadius: BorderRadius.circular(999),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: colorScheme.primary.withValues(alpha: 0.3),
+                                            color: colorScheme.primary
+                                                .withValues(alpha: 0.3),
                                             blurRadius: 8,
                                             offset: const Offset(0, 2),
                                           ),
@@ -540,7 +749,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: colorScheme.primary.withValues(alpha: 0.3),
+                                            color: colorScheme.primary
+                                                .withValues(alpha: 0.3),
                                             blurRadius: 8,
                                             offset: const Offset(0, 2),
                                           ),
@@ -557,11 +767,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 const SizedBox(height: 16),
                                 Text(
                                   'Study Tasks',
-                                  style: theme.textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: colorScheme.primary,
-                                    fontSize: 22,
-                                  ),
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: colorScheme.primary,
+                                        fontSize: 22,
+                                      ),
                                 ),
                                 const SizedBox(height: 12),
                                 if (_isLoadingTasks)
@@ -573,9 +784,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         height: 28,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 3,
-                                          valueColor: AlwaysStoppedAnimation<Color>(
-                                            colorScheme.primary,
-                                          ),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                colorScheme.primary,
+                                              ),
                                         ),
                                       ),
                                     ),
@@ -584,7 +796,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: colorScheme.primary.withValues(alpha: 0.1),
+                                      color: colorScheme.primary.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
@@ -597,26 +811,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         const SizedBox(width: 12),
                                         Text(
                                           'All tasks completed!',
-                                          style: theme.textTheme.titleMedium?.copyWith(
-                                            color: colorScheme.primary,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16,
-                                          ),
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                                color: colorScheme.primary,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                              ),
                                         ),
                                       ],
                                     ),
                                   )
                                 else
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: Colors.orange.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(8),
+                                          color: Colors.orange.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           border: Border.all(
-                                            color: Colors.orange.withValues(alpha: 0.3),
+                                            color: Colors.orange.withValues(
+                                              alpha: 0.3,
+                                            ),
                                             width: 1,
                                           ),
                                         ),
@@ -631,100 +856,163 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         ),
                                       ),
                                       const SizedBox(height: 16),
-                                      ..._openTasks.take(3).map((task) => Container(
-                                        margin: const EdgeInsets.only(bottom: 12),
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: colorScheme.surface,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: colorScheme.outline.withValues(alpha: 0.3),
-                                            width: 1,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(alpha: 0.05),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            // Priority indicator
-                                            Container(
-                                              width: 6,
-                                              height: 24,
+                                      ..._openTasks
+                                          .take(3)
+                                          .map(
+                                            (task) => Container(
+                                              margin: const EdgeInsets.only(
+                                                bottom: 12,
+                                              ),
+                                              padding: const EdgeInsets.all(16),
                                               decoration: BoxDecoration(
-                                                color: _getPriorityColor(task['priority'] as String? ?? 'Medium'),
-                                                borderRadius: BorderRadius.circular(3),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            // Checkbox
-                                            InkWell(
-                                              onTap: () => _toggleTaskCompletion(
-                                                task['id'] as int,
-                                                ((task['completed'] as int? ?? 0) == 1) ? false : true,
-                                              ),
-                                              borderRadius: BorderRadius.circular(6),
-                                              child: Container(
-                                                width: 24,
-                                                height: 24,
-                                                decoration: BoxDecoration(
-                                                  border: Border.all(
-                                                    color: colorScheme.primary,
-                                                    width: 2.5,
+                                                color: colorScheme.surface,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: colorScheme.outline
+                                                      .withValues(alpha: 0.3),
+                                                  width: 1,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withValues(
+                                                          alpha: 0.05,
+                                                        ),
+                                                    blurRadius: 4,
+                                                    offset: const Offset(0, 2),
                                                   ),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  color: (task['completed'] as int? ?? 0) == 1
-                                                      ? colorScheme.primary
-                                                      : Colors.transparent,
-                                                ),
-                                                child: (task['completed'] as int? ?? 0) == 1
-                                                    ? Icon(
-                                                        Icons.check,
-                                                        size: 16,
-                                                        color: colorScheme.onPrimary,
-                                                      )
-                                                    : null,
+                                                ],
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  // Priority indicator
+                                                  Container(
+                                                    width: 6,
+                                                    height: 24,
+                                                    decoration: BoxDecoration(
+                                                      color: _getPriorityColor(
+                                                        task['priority']
+                                                                as String? ??
+                                                            'Medium',
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            3,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  // Checkbox
+                                                  InkWell(
+                                                    onTap: () =>
+                                                        _toggleTaskCompletion(
+                                                          task['id'] as int,
+                                                          ((task['completed']
+                                                                          as int? ??
+                                                                      0) ==
+                                                                  1)
+                                                              ? false
+                                                              : true,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                    child: Container(
+                                                      width: 24,
+                                                      height: 24,
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(
+                                                          color: colorScheme
+                                                              .primary,
+                                                          width: 2.5,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
+                                                        color:
+                                                            (task['completed']
+                                                                        as int? ??
+                                                                    0) ==
+                                                                1
+                                                            ? colorScheme
+                                                                  .primary
+                                                            : Colors
+                                                                  .transparent,
+                                                      ),
+                                                      child:
+                                                          (task['completed']
+                                                                      as int? ??
+                                                                  0) ==
+                                                              1
+                                                          ? Icon(
+                                                              Icons.check,
+                                                              size: 16,
+                                                              color: colorScheme
+                                                                  .onPrimary,
+                                                            )
+                                                          : null,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  // Task title
+                                                  Expanded(
+                                                    child: Text(
+                                                      task['title']
+                                                              as String? ??
+                                                          'Untitled',
+                                                      style: theme
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.copyWith(
+                                                            color: colorScheme
+                                                                .onSurface,
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            decoration:
+                                                                (task['completed']
+                                                                            as int? ??
+                                                                        0) ==
+                                                                    1
+                                                                ? TextDecoration
+                                                                      .lineThrough
+                                                                : null,
+                                                          ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                            const SizedBox(width: 12),
-                                            // Task title
-                                            Expanded(
-                                              child: Text(
-                                                task['title'] as String? ?? 'Untitled',
-                                                style: theme.textTheme.titleMedium?.copyWith(
-                                                  color: colorScheme.onSurface,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                  decoration: (task['completed'] as int? ?? 0) == 1
-                                                      ? TextDecoration.lineThrough
-                                                      : null,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )),
+                                          ),
                                       if (_openTasks.length > 3)
                                         Padding(
-                                          padding: const EdgeInsets.only(top: 8),
+                                          padding: const EdgeInsets.only(
+                                            top: 8,
+                                          ),
                                           child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: colorScheme.primary.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(8),
+                                              color: colorScheme.primary
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                             child: Text(
                                               '+${_openTasks.length - 3} more tasks',
-                                              style: theme.textTheme.bodyLarge?.copyWith(
-                                                color: colorScheme.primary,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 14,
-                                              ),
+                                              style: theme.textTheme.bodyLarge
+                                                  ?.copyWith(
+                                                    color: colorScheme.primary,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 14,
+                                                  ),
                                             ),
                                           ),
                                         ),
@@ -788,7 +1076,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        
+
                         // Input Section (from Dictation)
                         Container(
                           padding: const EdgeInsets.all(20),
@@ -813,13 +1101,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 controller: _inputTextController,
                                 minLines: 4,
                                 maxLines: 6,
+                                enabled: !_isProcessingPDF,
                                 decoration: InputDecoration(
-                                  hintText: 'Enter or paste your text here...',
+                                  hintText: _isProcessingPDF
+                                      ? 'Processing PDF with AI...'
+                                      : 'Enter or paste your text here...',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   filled: true,
-                                  fillColor: colorScheme.surface,
+                                  fillColor: _isProcessingPDF
+                                      ? Theme.of(
+                                          context,
+                                        ).disabledColor.withOpacity(0.1)
+                                      : colorScheme.surface,
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -828,93 +1123,109 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 runSpacing: 10,
                                 children: <Widget>[
                                   ElevatedButton.icon(
-                                    onPressed: _isProcessingImage || _isRecording ? null : _openTextDialog,
+                                    onPressed:
+                                        _isProcessingImage ||
+                                            _isRecording ||
+                                            _isProcessingPDF
+                                        ? null
+                                        : _openTextDialog,
                                     icon: const Icon(Icons.edit_note_rounded),
                                     label: const Text('Type Text'),
                                   ),
                                   OutlinedButton.icon(
-                                    onPressed: _isProcessingImage || _isRecording ? null : _pickFile,
+                                    onPressed:
+                                        _isProcessingImage ||
+                                            _isRecording ||
+                                            _isProcessingPDF
+                                        ? null
+                                        : _pickFile,
                                     icon: const Icon(Icons.folder_open_rounded),
                                     label: const Text('Upload File'),
                                   ),
                                   OutlinedButton.icon(
-                                    onPressed: _isProcessingImage || _isRecording ? null : () => _showImageSourceDialog(),
-                                    icon: const Icon(Icons.photo_camera_outlined),
-                                    label: const Text('Scan Image'),
+                                    onPressed:
+                                        _isProcessingImage ||
+                                            _isRecording ||
+                                            _isProcessingPDF
+                                        ? null
+                                        : () => _showImageSourceDialog(),
+                                    icon: _isProcessingPDF
+                                        ? const Icon(Icons.hourglass_empty)
+                                        : const Icon(
+                                            Icons.photo_camera_outlined,
+                                          ),
+                                    label: Text(
+                                      _isProcessingPDF
+                                          ? 'Processing...'
+                                          : 'Scan Image',
+                                    ),
                                   ),
                                   FilledButton.tonalIcon(
-                                    onPressed: _isProcessingImage || _isRecording ? null : _startVoiceInput,
-                                    icon: _isRecording 
+                                    onPressed:
+                                        _isProcessingImage ||
+                                            _isRecording ||
+                                            _isProcessingPDF
+                                        ? null
+                                        : _startVoiceInput,
+                                    icon: _isRecording
                                         ? const SizedBox(
                                             width: 16,
                                             height: 16,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
                                           )
                                         : const Icon(Icons.mic_none_rounded),
-                                    label: Text(_isRecording ? 'Recording...' : 'Voice Input'),
+                                    label: Text(
+                                      _isRecording
+                                          ? 'Recording...'
+                                          : 'Voice Input',
+                                    ),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        
+
                         const SizedBox(height: 24),
-                        
-                        // Summary Section
-                        _LearningSection(
-                          title: 'Summary',
-                          subtitle: 'Get AI-powered summaries',
-                          icon: Icons.summarize_rounded,
-                          color: colorScheme.primary,
-                          inputController: TextEditingController(),
-                          onTypeText: _openTextDialog,
-                          onUploadFile: _pickFile,
-                          onScanImage: _showImageSourceDialog,
-                          onVoiceInput: _startVoiceInput,
-                          onGenerateSummary: () {
-                            // TODO: Implement AI summary generation
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Summary feature coming soon!')),
-                            );
-                          },
-                        ),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Quiz Section
-                        _LearningSection(
-                          title: 'Quiz',
-                          subtitle: 'Test your knowledge',
-                          icon: Icons.quiz_rounded,
-                          color: colorScheme.tertiary,
-                          inputController: TextEditingController(),
-                          onTypeText: _openTextDialog,
-                          onUploadFile: _pickFile,
-                          onScanImage: _showImageSourceDialog,
-                          onVoiceInput: _startVoiceInput,
-                          onGenerateQuiz: () {
-                            // TODO: Implement AI quiz generation
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Quiz feature coming soon!')),
-                            );
-                          },
-                        ),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Dictation Section
-                        _LearningSection(
-                          title: 'Dictation',
-                          subtitle: 'Practice pronunciation',
-                          icon: Icons.record_voice_over_rounded,
-                          color: colorScheme.secondary,
-                          inputController: TextEditingController(),
-                          onTypeText: _openTextDialog,
-                          onUploadFile: _pickFile,
-                          onScanImage: _showImageSourceDialog,
-                          onVoiceInput: _startVoiceInput,
-                          onPracticeDictation: () => _openModule(features[2].page),
+
+                        // Three inline sections
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: _GenerationButtonSection(
+                                title: 'Summary',
+                                subtitle: 'Get AI-powered summaries',
+                                icon: Icons.summarize_rounded,
+                                color: colorScheme.primary,
+                                isLoading: _isGeneratingSummary,
+                                onViewLast: _showLastSummary,
+                                onGenerate: _generateSummary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _GenerationButtonSection(
+                                title: 'Quiz',
+                                subtitle: 'Test your knowledge',
+                                icon: Icons.quiz_rounded,
+                                color: colorScheme.tertiary,
+                                isLoading: _isGeneratingQuiz,
+                                onGenerate: _generateQuiz,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _GenerationButtonSection(
+                                title: 'Dictation',
+                                subtitle: 'Practice pronunciation',
+                                icon: Icons.record_voice_over_rounded,
+                                color: colorScheme.secondary,
+                                onGenerate: () => _openModule(features[2].page),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -997,13 +1308,9 @@ class _FeatureCardState extends State<_FeatureCard>
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.95,
-    ).animate(CurvedAnimation(
-      parent: _scaleController,
-      curve: Curves.easeInOut,
-    ));
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _scaleController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -1055,17 +1362,26 @@ class _FeatureCardState extends State<_FeatureCard>
                             width: 54,
                             height: 54,
                             decoration: BoxDecoration(
-                              color: widget.entry.accent.withValues(alpha: 0.12),
+                              color: widget.entry.accent.withValues(
+                                alpha: 0.12,
+                              ),
                               borderRadius: BorderRadius.circular(18),
                             ),
-                            child: Icon(widget.entry.icon, color: widget.entry.accent, size: 28),
+                            child: Icon(
+                              widget.entry.icon,
+                              color: widget.entry.accent,
+                              size: 28,
+                            ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
-                                Text(widget.entry.title, style: theme.textTheme.titleLarge),
+                                Text(
+                                  widget.entry.title,
+                                  style: theme.textTheme.titleLarge,
+                                ),
                                 const SizedBox(height: 6),
                                 Text(
                                   widget.entry.subtitle,
@@ -1135,34 +1451,24 @@ class _FeatureEntry {
   final Widget page;
 }
 
-class _LearningSection extends StatelessWidget {
-  const _LearningSection({
+class _GenerationButtonSection extends StatelessWidget {
+  const _GenerationButtonSection({
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.color,
-    required this.inputController,
-    this.onGenerateSummary,
-    this.onGenerateQuiz,
-    this.onPracticeDictation,
-    this.onTypeText,
-    this.onUploadFile,
-    this.onScanImage,
-    this.onVoiceInput,
+    required this.onGenerate,
+    this.isLoading = false,
+    this.onViewLast,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final Color color;
-  final TextEditingController inputController;
-  final VoidCallback? onGenerateSummary;
-  final VoidCallback? onGenerateQuiz;
-  final VoidCallback? onPracticeDictation;
-  final VoidCallback? onTypeText;
-  final VoidCallback? onUploadFile;
-  final VoidCallback? onScanImage;
-  final VoidCallback? onVoiceInput;
+  final VoidCallback onGenerate;
+  final bool isLoading;
+  final VoidCallback? onViewLast;
 
   @override
   Widget build(BuildContext context) {
@@ -1174,10 +1480,7 @@ class _LearningSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 2,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1191,11 +1494,7 @@ class _LearningSection extends StatelessWidget {
                   color: color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 24,
-                ),
+                child: Icon(icon, color: color, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1221,100 +1520,51 @@ class _LearningSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          
-          // Input Section
-          TextField(
-            controller: inputController,
-            minLines: 3,
-            maxLines: 5,
-            decoration: InputDecoration(
-              hintText: 'Enter text for $title...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: color.withValues(alpha: 0.3)),
-              ),
-              filled: true,
-              fillColor: colorScheme.surface,
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: color, width: 2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Action Buttons
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: <Widget>[
-              // Input methods (same as Learning Hub)
-              OutlinedButton.icon(
-                onPressed: onTypeText,
-                icon: const Icon(Icons.edit_note_rounded, size: 18),
-                label: const Text('Type'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: color,
-                  side: BorderSide(color: color),
+
+          // Action Buttons Row
+          Row(
+            children: [
+              // View Last Button (only for Summary section)
+              if (onViewLast != null) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onViewLast,
+                    icon: const Icon(Icons.history, size: 16),
+                    label: const Text('View Last'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: color,
+                      side: BorderSide(color: color),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
-              ),
-              OutlinedButton.icon(
-                onPressed: onUploadFile,
-                icon: const Icon(Icons.folder_open_rounded, size: 18),
-                label: const Text('Upload'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: color,
-                  side: BorderSide(color: color),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: onScanImage,
-                icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                label: const Text('Scan'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: color,
-                  side: BorderSide(color: color),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: onVoiceInput,
-                icon: const Icon(Icons.mic_none_rounded, size: 18),
-                label: const Text('Voice'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: color,
-                  side: BorderSide(color: color),
-                ),
-              ),
-              
-              // Main action button
-              FilledButton.icon(
-                onPressed: () {
-                  if (onGenerateSummary != null) {
-                    onGenerateSummary!();
-                  } else if (onGenerateQuiz != null) {
-                    onGenerateQuiz!();
-                  } else if (onPracticeDictation != null) {
-                    onPracticeDictation!();
-                  }
-                },
-                icon: Icon(
-                  onGenerateSummary != null 
-                      ? Icons.summarize_rounded
-                      : onGenerateQuiz != null
-                          ? Icons.quiz_rounded
-                          : Icons.record_voice_over_rounded,
-                  size: 18,
-                ),
-                label: Text(
-                  onGenerateSummary != null 
-                      ? 'Generate Summary'
-                      : onGenerateQuiz != null
-                          ? 'Generate Quiz'
-                          : 'Practice Dictation',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: color,
-                  foregroundColor: colorScheme.onPrimary,
+                const SizedBox(width: 8),
+              ],
+
+              // Generation Button
+              Expanded(
+                flex: onViewLast != null ? 2 : 1,
+                child: FilledButton.icon(
+                  onPressed: isLoading ? null : onGenerate,
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(icon, size: 18),
+                  label: Text(
+                    title == 'Summary'
+                        ? 'Generate Summary'
+                        : title == 'Quiz'
+                        ? 'Generate Quiz'
+                        : 'Practice Dictation',
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: color,
+                    foregroundColor: colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                 ),
               ),
             ],

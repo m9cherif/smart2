@@ -3,10 +3,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:smart_student_ai/app_controller.dart';
 import 'package:smart_student_ai/app_strings.dart';
+import 'package:smart_student_ai/ai_service.dart';
 import 'launch_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AIService.initialize();
   runApp(const SmartStudentApp());
 }
 

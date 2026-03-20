@@ -12,7 +12,6 @@ import 'package:smart_student_ai/text_normalizer.dart';
 import 'package:smart_student_ai/database_service.dart';
 import 'package:smart_student_ai/speech_service.dart';
 import 'package:smart_student_ai/app_customization_panel.dart';
-import 'package:smart_student_ai/student_progress_card.dart';
 
 class DictationScreen extends StatefulWidget {
   const DictationScreen({super.key});
@@ -27,20 +26,17 @@ class _DictationScreenState extends State<DictationScreen> {
   final SpeechService _speechService = SpeechService();
   final TextEditingController _manualTextController = TextEditingController();
 
-  StudentProgress? _progress;
   String _sourceText = '';
   String _spokenText = '';
   String _statusMessage = '';
   bool _isProcessingImage = false;
   bool _isRecording = false;
-  bool _isLoadingProgress = true;
   DictationAnalysis? _analysis;
   Future<String>? _currentOCRTask;
 
   @override
   void initState() {
     super.initState();
-    _loadProgress();
   }
 
   @override
@@ -49,36 +45,13 @@ class _DictationScreenState extends State<DictationScreen> {
     super.dispose();
   }
 
-  Future<void> _loadProgress() async {
-    try {
-      final progress = await DatabaseService.instance.getStudentProgress();
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _progress = progress;
-        _isLoadingProgress = false;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isLoadingProgress = false;
-      });
-    }
-  }
-
   Future<void> _loadTextFromImage(ImageSource source) async {
     final strings = AppStrings.of(context);
 
     try {
-      final file = await _imagePicker.pickImage(source: source).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => null,
-      );
+      final file = await _imagePicker
+          .pickImage(source: source)
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
 
       if (file == null || file.path.isEmpty) {
         return;
@@ -91,9 +64,9 @@ class _DictationScreenState extends State<DictationScreen> {
         setState(() {
           _statusMessage = strings.dictationFileNotFound;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.dictationFileNotFound)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(strings.dictationFileNotFound)));
         return;
       }
 
@@ -120,24 +93,23 @@ class _DictationScreenState extends State<DictationScreen> {
     final strings = AppStrings.of(context);
 
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: <String>[
-          'txt',
-          'md',
-          'csv',
-          'json',
-          'jpg',
-          'jpeg',
-          'png',
-          'bmp',
-          'webp',
-          'heic',
-        ],
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => null,
-      );
+      final result = await FilePicker.platform
+          .pickFiles(
+            type: FileType.custom,
+            allowedExtensions: <String>[
+              'txt',
+              'md',
+              'csv',
+              'json',
+              'jpg',
+              'jpeg',
+              'png',
+              'bmp',
+              'webp',
+              'heic',
+            ],
+          )
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
 
       final file = result == null || result.files.isEmpty
           ? null
@@ -154,9 +126,9 @@ class _DictationScreenState extends State<DictationScreen> {
         setState(() {
           _statusMessage = strings.dictationFileNotFound;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.dictationFileNotFound)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(strings.dictationFileNotFound)));
         return;
       }
 
@@ -370,7 +342,7 @@ class _DictationScreenState extends State<DictationScreen> {
     final strings = AppStrings.of(context);
 
     try {
-      final result = await DatabaseService.instance.recordDictationSession(
+      await DatabaseService.instance.recordDictationSession(
         sourceText: _sourceText.trim(),
         spokenText: _spokenText.trim(),
         accuracy: analysis.accuracy,
@@ -383,27 +355,7 @@ class _DictationScreenState extends State<DictationScreen> {
         return;
       }
 
-      setState(() {
-        _progress = result.progress;
-      });
-
-      if (result.xpEarned > 0 || result.leveledUp) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result.leveledUp
-                  ? strings.progressLevelUpMessage(
-                      result.xpEarned,
-                      result.progress.level,
-                    )
-                  : strings.progressXpSavedMessage(
-                      result.xpEarned,
-                      result.progress.level,
-                    ),
-            ),
-          ),
-        );
-      }
+      // Progress is recorded but we no longer show XP/Level UI here
     } catch (_) {
       if (!mounted) {
         return;
@@ -436,25 +388,6 @@ class _DictationScreenState extends State<DictationScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: <Widget>[
-          if (_isLoadingProgress)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 18),
-              child: Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ),
-            )
-          else if (_progress != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: StudentProgressCard(
-                progress: _progress!,
-                strings: strings,
-                title: strings.progressTitle,
-              ),
-            ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -478,9 +411,7 @@ class _DictationScreenState extends State<DictationScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: <Widget>[
-                        Expanded(
-                          child: LinearProgressIndicator(minHeight: 8),
-                        ),
+                        Expanded(child: LinearProgressIndicator(minHeight: 8)),
                         if (_isProcessingImage) ...<Widget>[
                           const SizedBox(width: 12),
                           TextButton.icon(
@@ -575,12 +506,6 @@ class _DictationScreenState extends State<DictationScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          _TextPanel(
-            title: strings.dictationExpectedPassage,
-            text: _sourceText,
-            emptyState: strings.dictationEmptyPassage,
-          ),
-          const SizedBox(height: 14),
           _TextPanel(
             title: strings.dictationCapturedSpeech,
             text: _spokenText,
