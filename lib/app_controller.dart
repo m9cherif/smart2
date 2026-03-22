@@ -8,7 +8,7 @@ enum AppLanguage { english, french, arabic }
 
 enum AppBrightnessMode { light, dark }
 
-enum AppThemeOption { ocean, sunrise, forest }
+enum AppThemeOption { ocean, sunrise, forest, custom }
 
 enum AppGrade { primary7, primary8, primary9 }
 
@@ -104,8 +104,66 @@ class AppThemeSpec {
     ),
   ];
 
-  static AppThemeSpec fromOption(AppThemeOption option) {
-    return values.firstWhere((spec) => spec.option == option);
+  static AppThemeSpec fromOption(AppThemeOption option, [Color? customColor]) {
+    if (option == AppThemeOption.custom && customColor != null) {
+      return fromSeedColor(customColor);
+    }
+    return values.firstWhere(
+      (spec) => spec.option == option,
+      orElse: () => values.first,
+    );
+  }
+
+  /// Generates a complete theme spec from a single seed color.
+  static AppThemeSpec fromSeedColor(Color seed) {
+    final hsl = HSLColor.fromColor(seed);
+    final h = hsl.hue;
+    final s = hsl.saturation;
+    final l = hsl.lightness;
+
+    // Primary: the seed itself, clamped to a pleasant saturation/lightness
+    final primary = HSLColor.fromAHSL(1, h, s.clamp(0.35, 0.85), l.clamp(0.25, 0.45)).toColor();
+
+    // Secondary: complementary hue shift (+40°), warmer
+    final secondary = HSLColor.fromAHSL(1, (h + 40) % 360, (s * 0.9).clamp(0.4, 0.85), 0.55).toColor();
+
+    // Tertiary: analogous hue shift (-50°)
+    final tertiary = HSLColor.fromAHSL(1, (h + 310) % 360, (s * 0.8).clamp(0.3, 0.7), 0.35).toColor();
+
+    // Surfaces
+    final surface = HSLColor.fromAHSL(1, h, (s * 0.15).clamp(0.05, 0.2), 0.97).toColor();
+    final darkSurface = HSLColor.fromAHSL(1, h, (s * 0.2).clamp(0.05, 0.25), 0.08).toColor();
+
+    // Hero foreground (light tinted white)
+    final heroFg = HSLColor.fromAHSL(1, h, (s * 0.3).clamp(0.1, 0.4), 0.93).toColor();
+    final darkHeroFg = HSLColor.fromAHSL(1, h, (s * 0.3).clamp(0.1, 0.4), 0.94).toColor();
+
+    // Page gradients
+    final pg1 = HSLColor.fromAHSL(1, h, (s * 0.18).clamp(0.05, 0.25), 0.95).toColor();
+    final pg2 = HSLColor.fromAHSL(1, h, (s * 0.1).clamp(0.02, 0.15), 0.98).toColor();
+    final dpg1 = HSLColor.fromAHSL(1, h, (s * 0.2).clamp(0.05, 0.25), 0.05).toColor();
+    final dpg2 = HSLColor.fromAHSL(1, h, (s * 0.15).clamp(0.05, 0.2), 0.08).toColor();
+
+    // Hero gradients
+    final hg1 = primary;
+    final hg2 = HSLColor.fromAHSL(1, h, (s * 0.9).clamp(0.3, 0.8), (l * 0.7).clamp(0.18, 0.35)).toColor();
+    final dhg1 = HSLColor.fromAHSL(1, h, (s * 0.85).clamp(0.3, 0.75), (l * 0.6).clamp(0.15, 0.3)).toColor();
+    final dhg2 = HSLColor.fromAHSL(1, h, (s * 0.6).clamp(0.2, 0.5), 0.08).toColor();
+
+    return AppThemeSpec(
+      option: AppThemeOption.custom,
+      primary: primary,
+      secondary: secondary,
+      tertiary: tertiary,
+      surface: surface,
+      darkSurface: darkSurface,
+      heroForeground: heroFg,
+      darkHeroForeground: darkHeroFg,
+      pageGradient: <Color>[pg1, pg2],
+      darkPageGradient: <Color>[dpg1, dpg2],
+      heroGradient: <Color>[hg1, hg2],
+      darkHeroGradient: <Color>[dhg1, dhg2],
+    );
   }
 }
 
@@ -115,6 +173,7 @@ class AppController extends ChangeNotifier {
   static const String _languageKey = 'app_language';
   static const String _gradeKey = 'app_grade';
   static const String _gradeSelectedKey = 'grade_selected';
+  static const String _customColorKey = 'app_custom_color';
 
   SharedPreferences? _preferences;
   AppThemeOption _themeOption = AppThemeOption.ocean;
@@ -122,13 +181,15 @@ class AppController extends ChangeNotifier {
   AppLanguage _language = AppLanguage.english;
   AppGrade _grade = AppGrade.primary7;
   bool _gradeSelected = false;
+  Color _customColor = const Color(0xFF6750A4); // default custom color (purple)
 
   AppThemeOption get themeOption => _themeOption;
   AppBrightnessMode get brightnessMode => _brightnessMode;
   AppLanguage get language => _language;
   AppGrade get grade => _grade;
   bool get gradeSelected => _gradeSelected;
-  AppThemeSpec get themeSpec => AppThemeSpec.fromOption(_themeOption);
+  Color get customColor => _customColor;
+  AppThemeSpec get themeSpec => AppThemeSpec.fromOption(_themeOption, _customColor);
   Locale get locale => switch (_language) {
     AppLanguage.english => const Locale('en'),
     AppLanguage.french => const Locale('fr'),
@@ -146,25 +207,22 @@ class AppController extends ChangeNotifier {
     final nextLanguage = _languageFromName(preferences.getString(_languageKey));
     final nextGrade = _gradeFromName(preferences.getString(_gradeKey));
     final nextGradeSelected = preferences.getBool(_gradeSelectedKey) ?? false;
+    final savedColorValue = preferences.getInt(_customColorKey);
+    final nextCustomColor = savedColorValue != null
+        ? Color(savedColorValue)
+        : const Color(0xFF6750A4);
 
     // Initialize API services with saved configuration
     final ocrService = ocr_service.GoogleOCRService();
     final speechService = SpeechService();
     await APIConfig.initializeServices(ocrService, speechService);
 
-    if (nextTheme == _themeOption &&
-        nextBrightness == _brightnessMode &&
-        nextLanguage == _language &&
-        nextGrade == _grade &&
-        nextGradeSelected == _gradeSelected) {
-      return;
-    }
-
     _themeOption = nextTheme;
     _brightnessMode = nextBrightness;
     _language = nextLanguage;
     _grade = nextGrade;
     _gradeSelected = nextGradeSelected;
+    _customColor = nextCustomColor;
     notifyListeners();
   }
 
@@ -177,6 +235,20 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     final preferences = await _ensurePreferences();
     await preferences.setString(_themeKey, value.name);
+  }
+
+  Future<void> updateCustomColor(Color value) async {
+    if (_customColor == value) {
+      return;
+    }
+
+    _customColor = value;
+    // When picking a custom color, automatically switch to custom theme
+    _themeOption = AppThemeOption.custom;
+    notifyListeners();
+    final preferences = await _ensurePreferences();
+    await preferences.setInt(_customColorKey, value.toARGB32());
+    await preferences.setString(_themeKey, AppThemeOption.custom.name);
   }
 
   Future<void> updateBrightnessMode(AppBrightnessMode value) async {
@@ -272,9 +344,8 @@ class AppScope extends InheritedNotifier<AppController> {
 }
 
 ThemeData buildAppTheme(AppThemeSpec spec, AppBrightnessMode mode) {
-  final brightness = mode == AppBrightnessMode.dark
-      ? Brightness.dark
-      : Brightness.light;
+  final isDark = mode == AppBrightnessMode.dark;
+  final brightness = isDark ? Brightness.dark : Brightness.light;
   final base = ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -283,17 +354,20 @@ ThemeData buildAppTheme(AppThemeSpec spec, AppBrightnessMode mode) {
       brightness: brightness,
     ),
   );
+  
   final surface = spec.surfaceFor(mode);
-  // ensure text remains black regardless of brightness
+  final onSurface = isDark ? Colors.white.withValues(alpha: 0.95) : Colors.black.withValues(alpha: 0.9);
+  final onPrimary = isDark ? Colors.white : Colors.black;
+
   final colorScheme = base.colorScheme.copyWith(
     primary: spec.primary,
     secondary: spec.secondary,
     tertiary: spec.tertiary,
     surface: surface,
-    onSurface: Colors.black,
-    onPrimary: Colors.black,
-    onSecondary: Colors.black,
-    onError: Colors.black,
+    onSurface: onSurface,
+    onPrimary: onPrimary,
+    onSecondary: onSurface,
+    onError: onSurface,
   );
 
   return base.copyWith(
@@ -304,7 +378,7 @@ ThemeData buildAppTheme(AppThemeSpec spec, AppBrightnessMode mode) {
       elevation: 0,
       scrolledUnderElevation: 0,
       backgroundColor: Colors.transparent,
-      foregroundColor: colorScheme.onSurface,
+      foregroundColor: onSurface,
       surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
@@ -314,7 +388,7 @@ ThemeData buildAppTheme(AppThemeSpec spec, AppBrightnessMode mode) {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(28),
         side: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+          color: colorScheme.outlineVariant.withValues(alpha: isDark ? 0.2 : 0.35),
         ),
       ),
     ),
@@ -347,46 +421,54 @@ ThemeData buildAppTheme(AppThemeSpec spec, AppBrightnessMode mode) {
         borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      labelStyle: TextStyle(color: onSurface.withValues(alpha: 0.7)),
+      hintStyle: TextStyle(color: onSurface.withValues(alpha: 0.5)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         elevation: 0,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: onPrimary,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        foregroundColor: colorScheme.primary,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        side: BorderSide(color: colorScheme.primary, width: 1.2),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: colorScheme.inverseSurface,
-      contentTextStyle: TextStyle(color: colorScheme.onInverseSurface),
+      backgroundColor: isDark ? colorScheme.surfaceContainerHighest : colorScheme.inverseSurface,
+      contentTextStyle: TextStyle(color: isDark ? onSurface : colorScheme.onInverseSurface),
     ),
     textTheme: base.textTheme
-        // override all colors to black so text never turns white
-        .apply(bodyColor: Colors.black, displayColor: Colors.black)
+        .apply(bodyColor: onSurface, displayColor: onSurface)
         .copyWith(
-          headlineLarge: const TextStyle(
+          headlineLarge: TextStyle(
+            color: onSurface,
             fontWeight: FontWeight.w900,
             letterSpacing: -1.4,
             height: 1.0,
           ),
-          headlineMedium: const TextStyle(
+          headlineMedium: TextStyle(
+            color: onSurface,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.8,
           ),
-          headlineSmall: const TextStyle(
+          headlineSmall: TextStyle(
+            color: onSurface,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.4,
           ),
-          titleLarge: const TextStyle(fontWeight: FontWeight.w700),
-          titleMedium: const TextStyle(fontWeight: FontWeight.w700),
-          bodyLarge: const TextStyle(height: 1.5),
-          bodyMedium: const TextStyle(height: 1.45),
+          titleLarge: TextStyle(color: onSurface, fontWeight: FontWeight.w700),
+          titleMedium: TextStyle(color: onSurface, fontWeight: FontWeight.w700),
+          bodyLarge: TextStyle(color: onSurface, height: 1.5),
+          bodyMedium: TextStyle(color: onSurface, height: 1.45),
         ),
   );
 }

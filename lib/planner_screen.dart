@@ -203,21 +203,51 @@ class _PlannerScreenState extends State<PlannerScreen> {
     }
   }
 
-  Future<void> _pickDueDate() async {
+  Future<void> _pickDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDueDate ?? now,
       firstDate: now.subtract(const Duration(days: 365)),
       lastDate: now.add(const Duration(days: 365 * 5)),
     );
 
-    if (picked == null || !mounted) {
+    if (pickedDate == null || !mounted) {
       return;
     }
 
     setState(() {
-      _selectedDueDate = picked;
+      final current = _selectedDueDate ?? now;
+      _selectedDueDate = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        current.hour,
+        current.minute,
+      );
+    });
+  }
+
+  Future<void> _pickTime() async {
+    final now = DateTime.now();
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_selectedDueDate ?? now),
+    );
+
+    if (pickedTime == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      final current = _selectedDueDate ?? now;
+      _selectedDueDate = DateTime(
+        current.year,
+        current.month,
+        current.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
     });
   }
 
@@ -319,15 +349,31 @@ class _PlannerScreenState extends State<PlannerScreen> {
                             },
                           ),
                         ),
-                        const SizedBox(width: 12),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: _pickDueDate,
+                            onPressed: _pickDate,
                             icon: const Icon(Icons.calendar_today_rounded),
                             label: Text(
                               _selectedDueDate == null
                                   ? strings.plannerNoDueDate
-                                  : _formatDate(context, _selectedDueDate!),
+                                  : MaterialLocalizations.of(context).formatMediumDate(_selectedDueDate!),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _pickTime,
+                            icon: const Icon(Icons.access_time_rounded),
+                            label: Text(
+                              _selectedDueDate == null
+                                  ? strings.plannerNoTime
+                                  : TimeOfDay.fromDateTime(_selectedDueDate!).format(context),
                             ),
                           ),
                         ),
@@ -344,6 +390,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         60,
                         120,
                         180,
+                        240,
+                        480,
                         1440,
                         2880,
                         4320
@@ -381,6 +429,30 @@ class _PlannerScreenState extends State<PlannerScreen> {
                               : strings.plannerAddTask,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final now = DateTime.now();
+                        final testTime = now.add(const Duration(minutes: 1));
+                        final success = await NotificationService.instance.scheduleTaskReminder(
+                          id: 9999,
+                          title: "Test Reminder",
+                          dueDate: testTime.add(const Duration(seconds: 10)), // Just after
+                          reminderMinutes: 0, // Remind exactly at testTime
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(success 
+                                ? 'Test reminder scheduled for 1 minute from now.' 
+                                : 'Failed to schedule test reminder.'),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.bug_report_rounded, size: 16),
+                      label: const Text('Test Reminder (1 min)'),
                     ),
                   ],
                 ),
@@ -589,7 +661,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
   }
 
   String _formatDate(BuildContext context, DateTime date) {
-    return MaterialLocalizations.of(context).formatMediumDate(date);
+    final dateStr = MaterialLocalizations.of(context).formatMediumDate(date);
+    final timeStr = TimeOfDay.fromDateTime(date).format(context);
+    return '$dateStr $timeStr';
   }
 
   String _plannerErrorDetails(Object error) {

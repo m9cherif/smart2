@@ -6,6 +6,7 @@ import 'package:smart_student_ai/app_controller.dart';
 import 'package:smart_student_ai/app_strings.dart';
 import 'package:smart_student_ai/notification_service.dart';
 import 'package:smart_student_ai/ai_service.dart';
+import 'package:smart_student_ai/tray_service.dart';
 import 'launch_gate.dart';
 
 Future<void> main() async {
@@ -16,6 +17,7 @@ Future<void> main() async {
   ]);
   await AIService.initialize();
   await NotificationService.instance.initialize();
+  await TrayService.instance.initialize();
   runApp(const SmartStudentApp());
 }
 

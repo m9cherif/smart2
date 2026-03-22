@@ -246,11 +246,24 @@ class AppStrings {
 
   String themeName(AppThemeOption option) {
     return switch (option) {
-      AppThemeOption.ocean => _pick(en: 'Ocean', fr: 'Ocean', ar: 'بحر'),
+      AppThemeOption.ocean => _pick(en: 'Ocean', fr: 'Océan', ar: 'بحر'),
       AppThemeOption.sunrise => _pick(en: 'Sunrise', fr: 'Aube', ar: 'فجر'),
-      AppThemeOption.forest => _pick(en: 'Forest', fr: 'Foret', ar: 'غابة'),
+      AppThemeOption.forest => _pick(en: 'Forest', fr: 'Forêt', ar: 'غابة'),
+      AppThemeOption.custom => _pick(en: 'Custom', fr: 'Personnalisé', ar: 'مخصص'),
     };
   }
+
+  String get customColorSectionTitle => _pick(
+    en: 'Custom color',
+    fr: 'Couleur personnalisée',
+    ar: 'اللون المخصص',
+  );
+
+  String get customColorPickerHint => _pick(
+    en: 'Tap a color to apply, or use the slider to explore.',
+    fr: 'Appuie sur une couleur pour l\'appliquer ou utilise la barre.',
+    ar: 'اضغط على لون لتطبيقه أو استخدم شريط التمرير.',
+  );
 
   String get settingsResetData => _pick(
     en: 'Reset all data',
@@ -320,6 +333,9 @@ class AppStrings {
 
   String get plannerNoDueDate =>
       _pick(en: 'No due date', fr: 'Pas de date', ar: 'بدون تاريخ');
+
+  String get plannerNoTime =>
+      _pick(en: 'No time', fr: 'Pas d\'heure', ar: 'بدون توقيت');
 
   String get plannerAddTask =>
       _pick(en: 'Add task', fr: 'Ajouter', ar: 'اضف المهمة');
@@ -659,6 +675,12 @@ class AppStrings {
     }
     if (minutes == 180) {
       return _pick(en: '3 hours before', fr: '3 heures avant', ar: 'قبل 3 ساعات');
+    }
+    if (minutes == 240) {
+      return _pick(en: '4 hours before', fr: '4 heures avant', ar: 'قبل 4 ساعات');
+    }
+    if (minutes == 480) {
+      return _pick(en: '8 hours before', fr: '8 heures avant', ar: 'قبل 8 ساعات');
     }
     if (minutes == 1440) {
       return _pick(en: '1 day before', fr: '1 jour avant', ar: 'قبل يوم');

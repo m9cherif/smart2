@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 class NotificationService {
   NotificationService._();
@@ -10,6 +11,17 @@ class NotificationService {
 
   Future<void> initialize() async {
     tz.initializeTimeZones();
+    final dynamic tzInfo = await FlutterTimezone.getLocalTimezone();
+    String timeZoneName;
+    if (tzInfo is String) {
+      timeZoneName = tzInfo;
+    } else {
+      // Handle TimezoneInfo object if returned by some versions
+      timeZoneName = (tzInfo as dynamic).name?.toString() ?? 
+                     (tzInfo as dynamic).zone?.toString() ?? 
+                     tzInfo.toString();
+    }
+    tz.setLocalLocation(tz.getLocation(timeZoneName));
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings();
@@ -22,7 +34,7 @@ class NotificationService {
     await _notifications.initialize(initializationSettings);
   }
 
-  Future<void> scheduleTaskReminder({
+  Future<bool> scheduleTaskReminder({
     required int id,
     required String title,
     required DateTime dueDate,
@@ -31,7 +43,7 @@ class NotificationService {
     final scheduledDate = dueDate.subtract(Duration(minutes: reminderMinutes));
     
     if (scheduledDate.isBefore(DateTime.now())) {
-      return; // Cannot schedule in the past
+      return false; // Cannot schedule in the past
     }
 
     await _notifications.zonedSchedule(
@@ -47,11 +59,14 @@ class NotificationService {
           priority: Priority.high,
         ),
         iOS: DarwinNotificationDetails(),
+        // Windows/Desktop support is often through the basic notification details
+        // but we can add more if needed using platform-specific packages.
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
+    return true;
   }
 
   Future<void> cancelReminder(int id) async {

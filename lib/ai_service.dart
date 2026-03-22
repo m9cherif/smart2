@@ -1,10 +1,12 @@
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+
 class AIService {
   static const String _apiKey =
-      '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';
+      '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';
   static const String _baseUrl =
       'https://openrouter.ai/api/v1/chat/completions';
   static String _lastGeneratedSummary = '';
@@ -16,53 +18,68 @@ class AIService {
 
   // Extract text from PDF using ConvertAPI
   static Future<String> extractTextFromPDF(File pdfFile) async {
+    return _convertWithAPI(pdfFile, 'pdf');
+  }
+
+  // Extract text from DOCX/DOC using ConvertAPI
+  static Future<String> extractTextFromDocx(File docxFile) async {
+    return _convertWithAPI(docxFile, 'docx');
+  }
+
+  static Future<String> _convertWithAPI(File file, String format) async {
     try {
-      if (!await pdfFile.exists()) {
-        return 'PDF file not found.';
+      if (!await file.exists()) {
+        return '$format file not found.';
       }
 
-      var request = http.MultipartRequest(
+      // Use the appropriate token and endpoint based on format
+      // Users often provide a specific token for doc/docx
+      final isDoc = format == 'docx' || format == 'doc';
+      final token = isDoc 
+          ? 'dRinXxggO8poKc7619ltbl8LYQjyKacH' 
+          : 'FnpOXR02fbG81U7WETCOUOn2824nsCuM';
+      
+      // Use docx endpoint for both .doc and .docx as per user's example
+      final apiFormat = isDoc ? 'docx' : format;
+
+      final request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://v2.convertapi.com/convert/pdf/to/txt'),
+        Uri.parse('https://v2.convertapi.com/convert/$apiFormat/to/txt'),
       );
 
       request.headers.addAll({
-        'Authorization': 'Bearer FnpOXR02fbG81U7WETCOUOn2824nsCuM',
+        'Authorization': 'Bearer $token',
       });
 
       request.fields['StoreFile'] = 'true';
       request.files.add(
-        await http.MultipartFile.fromPath('File', pdfFile.path),
+        await http.MultipartFile.fromPath('File', file.path),
       );
 
-      var response = await request.send();
+      final response = await request.send();
 
       if (response.statusCode == 200) {
-        var responseData = await response.stream.bytesToString();
-        var json = jsonDecode(responseData);
+        final responseData = await response.stream.bytesToString();
+        final json = jsonDecode(responseData);
 
         if (json['Files'] != null && json['Files'].isNotEmpty) {
-          String fileUrl = json['Files'][0]['Url'];
-
-          var textResponse = await http.get(Uri.parse(fileUrl));
+          final String fileUrl = json['Files'][0]['Url'];
+          final textResponse = await http.get(Uri.parse(fileUrl));
 
           if (textResponse.statusCode == 200) {
-            String extractedText = textResponse.body;
-            return extractedText.isNotEmpty
-                ? extractedText
-                : 'No text content found in PDF';
-          } else {
-            return 'Error downloading extracted text: HTTP ${textResponse.statusCode}';
+            return textResponse.body.isNotEmpty 
+                ? textResponse.body 
+                : 'No text content found in document.';
           }
-        } else {
-          return 'Error: No files returned from conversion API';
+          return 'Error downloading text: HTTP ${textResponse.statusCode}';
         }
+        return 'Error: No files returned from conversion API';
       } else {
-        var responseData = await response.stream.bytesToString();
-        return 'Error converting PDF: HTTP ${response.statusCode}\n$responseData';
+        final responseData = await response.stream.bytesToString();
+        return 'Error converting document: HTTP ${response.statusCode}\n$responseData';
       }
     } catch (e) {
-      return 'Error extracting text from PDF: ${e.toString()}';
+      return 'Error extracting text: ${e.toString()}';
     }
   }
 
@@ -80,52 +97,94 @@ class AIService {
     }
   }
 
-  // Process PDF directly with AI (returns summary)
-  static Future<String> processPDFWithAI(File pdfFile) async {
+  // Process any document (PDF, Docx, Text) with AI to get a summary
+  static Future<String> processDocumentSummary(File file) async {
     try {
-      // Extract text from PDF
-      final extractedText = await extractTextFromPDF(pdfFile);
-
-      // If no text found, return appropriate message
-      if (extractedText.isEmpty ||
-          extractedText == 'No text content found in PDF') {
-        return 'No readable text could be extracted from this PDF. The document may contain scanned images or complex formatting that requires specialized processing.';
+      final extractedText = await extractTextFromFile(file);
+      if (extractedText.isEmpty || extractedText.startsWith('Error')) {
+        return 'No readable text could be extracted from this document ($extractedText).';
       }
-
-      // Generate summary directly from extracted text
       return await generateSummary(extractedText);
     } catch (e) {
-      return 'Error processing PDF with AI: ${e.toString()}';
+      return 'Error processing document summary: ${e.toString()}';
     }
   }
 
-  // Process PDF directly with AI (returns quiz)
-  static Future<List<Map<String, dynamic>>> processPDFQuizWithAI(
-    File pdfFile,
-  ) async {
+  // Process any document (PDF, Docx, Text) with AI to get a quiz
+  static Future<List<Map<String, dynamic>>> processDocumentQuiz(File file) async {
     try {
-      // Extract text from PDF
-      final extractedText = await extractTextFromPDF(pdfFile);
-
-      // If no text found, return empty quiz
-      if (extractedText.isEmpty ||
-          extractedText == 'No text content found in PDF') {
+      final extractedText = await extractTextFromFile(file);
+      if (extractedText.isEmpty || extractedText.startsWith('Error')) {
         return [];
       }
-
-      // Generate quiz directly from extracted text
       return await generateQuiz(extractedText);
     } catch (e) {
       return [];
     }
   }
 
-  // Extract text from any file (PDF or text)
+  // Extract text from any file (PDF, Docx, or text)
   static Future<String> extractTextFromFile(File file) async {
-    if (file.path.toLowerCase().endsWith('.pdf')) {
+    final path = file.path.toLowerCase();
+    if (path.endsWith('.pdf')) {
       return await extractTextFromPDF(file);
+    } else if (path.endsWith('.docx') || path.endsWith('.doc')) {
+      return await extractTextFromDocx(file);
     } else {
       return await extractTextFromTextFile(file);
+    }
+  }
+
+  // Vision-based OCR using AI (OpenRouter)
+  static Future<String> extractTextFromImage(File imageFile) async {
+    try {
+      if (!await imageFile.exists()) {
+        return 'Image file not found.';
+      }
+
+      final bytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(bytes);
+      final extension = p.extension(imageFile.path).toLowerCase().replaceFirst('.', '');
+      final mimeType = extension == 'jpg' || extension == 'jpeg' ? 'image/jpeg' : 'image/$extension';
+
+      final response = await http.post(
+        Uri.parse(_baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_apiKey',
+          'HTTP-Referer': 'https://openrouter.ai/',
+        },
+        body: jsonEncode({
+          'model': 'google/gemini-2.0-flash-001', // Vision-capable model
+          'messages': [
+            {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'text',
+                  'text': 'Please perform OCR on this image. Extract ALL readable text exactly as it appears. If the text is in Arabic, preserve the Arabic characters. Return ONLY the extracted text with no commentary.',
+                },
+                {
+                  'type': 'image_url',
+                  'image_url': {
+                    'url': 'data:$mimeType;base64,$base64Image',
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final content = responseData['choices'][0]['message']['content'];
+        return content?.trim() ?? 'No text extracted from image.';
+      } else {
+        return 'AI OCR Error: HTTP ${response.statusCode} - ${response.body}';
+      }
+    } catch (e) {
+      return 'AI OCR Exception: ${e.toString()}';
     }
   }
 

@@ -15,6 +15,21 @@ class AppCustomizationPanel extends StatelessWidget {
     final strings = AppStrings.of(context);
     final theme = Theme.of(context);
 
+    // Build theme preview cards for preset themes
+    final presetCards = AppThemeSpec.values
+        .map(
+          (spec) => _ThemePreviewCard(
+            spec: spec,
+            label: strings.themeName(spec.option),
+            selected: controller.themeOption == spec.option,
+            onTap: () => controller.updateTheme(spec.option),
+          ),
+        )
+        .toList(growable: false);
+
+    // Build the custom theme card if custom is selected
+    final customSpec = AppThemeSpec.fromSeedColor(controller.customColor);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -37,18 +52,39 @@ class AppCustomizationPanel extends StatelessWidget {
         Wrap(
           spacing: 12,
           runSpacing: 12,
-          children: AppThemeSpec.values
-              .map(
-                (spec) => _ThemePreviewCard(
-                  spec: spec,
-                  label: strings.themeName(spec.option),
-                  selected: controller.themeOption == spec.option,
-                  onTap: () => controller.updateTheme(spec.option),
-                ),
-              )
-              .toList(growable: false),
+          children: [
+            ...presetCards,
+            // Custom theme card
+            _ThemePreviewCard(
+              spec: customSpec,
+              label: strings.themeName(AppThemeOption.custom),
+              selected: controller.themeOption == AppThemeOption.custom,
+              onTap: () => controller.updateCustomColor(controller.customColor),
+            ),
+          ],
         ),
-        const SizedBox(height: 18),        // brightness toggle
+        const SizedBox(height: 24),
+        // ── Custom Color Picker Section ──
+        Text(strings.customColorSectionTitle, style: theme.textTheme.titleMedium),
+        const SizedBox(height: 6),
+        Text(
+          strings.customColorPickerHint,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _ColorPickerGrid(
+          selectedColor: controller.customColor,
+          onColorSelected: (color) => controller.updateCustomColor(color),
+        ),
+        const SizedBox(height: 16),
+        _HueSliderPicker(
+          selectedColor: controller.customColor,
+          onColorChanged: (color) => controller.updateCustomColor(color),
+        ),
+        const SizedBox(height: 24),
+        // brightness toggle
         Text(strings.brightnessSectionTitle, style: theme.textTheme.titleMedium),
         const SizedBox(height: 12),
         Row(
@@ -133,6 +169,248 @@ class AppCustomizationPanel extends StatelessWidget {
     );
   }
 }
+
+// ── Preset Color Grid ──────────────────────────────────────────────────────────
+
+class _ColorPickerGrid extends StatelessWidget {
+  const _ColorPickerGrid({
+    required this.selectedColor,
+    required this.onColorSelected,
+  });
+
+  final Color selectedColor;
+  final ValueChanged<Color> onColorSelected;
+
+  static const List<Color> _presetColors = <Color>[
+    Color(0xFF6750A4), // Purple
+    Color(0xFF9C27B0), // Deep Purple
+    Color(0xFFE91E63), // Pink
+    Color(0xFFF44336), // Red
+    Color(0xFFFF5722), // Deep Orange
+    Color(0xFFFF9800), // Orange
+    Color(0xFFFFC107), // Amber
+    Color(0xFF8BC34A), // Light Green
+    Color(0xFF4CAF50), // Green
+    Color(0xFF009688), // Teal
+    Color(0xFF00BCD4), // Cyan
+    Color(0xFF03A9F4), // Light Blue
+    Color(0xFF2196F3), // Blue
+    Color(0xFF3F51B5), // Indigo
+    Color(0xFF607D8B), // Blue Grey
+    Color(0xFF795548), // Brown
+    Color(0xFF424242), // Dark Grey
+    Color(0xFF37474F), // Charcoal
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: _presetColors.map((color) {
+        final isSelected = _isColorClose(color, selectedColor);
+        return GestureDetector(
+          onTap: () => onColorSelected(color),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected
+                    ? Colors.white
+                    : Colors.transparent,
+                width: isSelected ? 3 : 0,
+              ),
+              boxShadow: <BoxShadow>[
+                if (isSelected)
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.5),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                  ),
+                BoxShadow(
+                  color: color.withValues(alpha: 0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: isSelected
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                : null,
+          ),
+        );
+      }).toList(growable: false),
+    );
+  }
+
+  bool _isColorClose(Color a, Color b) {
+    return (a.red - b.red).abs() < 15 &&
+        (a.green - b.green).abs() < 15 &&
+        (a.blue - b.blue).abs() < 15;
+  }
+}
+
+// ── Hue Slider ─────────────────────────────────────────────────────────────────
+
+class _HueSliderPicker extends StatelessWidget {
+  const _HueSliderPicker({
+    required this.selectedColor,
+    required this.onColorChanged,
+  });
+
+  final Color selectedColor;
+  final ValueChanged<Color> onColorChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final hsl = HSLColor.fromColor(selectedColor);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Hue slider
+        Container(
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: List<Color>.generate(
+                360 ~/ 10,
+                (i) => HSLColor.fromAHSL(1, i * 10.0, 0.7, 0.45).toColor(),
+              ),
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: selectedColor.withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 40,
+              trackShape: const _FullWidthTrackShape(),
+              thumbShape: const _CircleThumbShape(radius: 16),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+              activeTrackColor: Colors.transparent,
+              inactiveTrackColor: Colors.transparent,
+              thumbColor: Colors.white,
+            ),
+            child: Slider(
+              value: hsl.hue,
+              min: 0,
+              max: 359,
+              onChanged: (hue) {
+                final newColor = HSLColor.fromAHSL(
+                  1,
+                  hue,
+                  hsl.saturation.clamp(0.4, 0.85),
+                  hsl.lightness.clamp(0.3, 0.5),
+                ).toColor();
+                onColorChanged(newColor);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        // Live preview of current custom color
+        Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: selectedColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Custom slider shapes ────────────────────────────────────────────────────────
+
+class _FullWidthTrackShape extends RoundedRectSliderTrackShape {
+  const _FullWidthTrackShape();
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final trackHeight = sliderTheme.trackHeight ?? 40;
+    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    return Rect.fromLTWH(offset.dx, trackTop, parentBox.size.width, trackHeight);
+  }
+}
+
+class _CircleThumbShape extends SliderComponentShape {
+  const _CircleThumbShape({required this.radius});
+
+  final double radius;
+
+  @override
+  Size getPreferredSize(bool isEnabled, bool isDiscrete) {
+    return Size.fromRadius(radius);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    final canvas = context.canvas;
+    // Outer shadow
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = Colors.black26
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+    // White circle
+    canvas.drawCircle(center, radius, Paint()..color = Colors.white);
+    // Inner color dot
+    final hue = value * 359;
+    final dotColor = HSLColor.fromAHSL(1, hue, 0.7, 0.45).toColor();
+    canvas.drawCircle(center, radius - 4, Paint()..color = dotColor);
+  }
+}
+
+// ── Existing widgets ────────────────────────────────────────────────────────────
 
 class AppSettingsButton extends StatelessWidget {
   const AppSettingsButton({super.key});

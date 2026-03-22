@@ -10,7 +10,6 @@ import 'package:smart_student_ai/database_service.dart';
 import 'package:smart_student_ai/app_customization_panel.dart';
 import 'package:smart_student_ai/student_progress_card.dart';
 import 'package:smart_student_ai/google_ocr_service.dart';
-import 'package:smart_student_ai/speech_service.dart';
 import 'package:smart_student_ai/ai_service.dart';
 import 'package:smart_student_ai/interactive_quiz_dialog.dart';
 import 'dictation_screen.dart';
@@ -34,9 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final TextEditingController _inputTextController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
   final GoogleOCRService _ocrService = GoogleOCRService();
-  final SpeechService _speechService = SpeechService();
   bool _isProcessingImage = false;
-  bool _isRecording = false;
   bool _isGeneratingSummary = false;
   bool _isGeneratingQuiz = false;
   bool _isProcessingPDF = false;
@@ -244,35 +241,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error processing image: $e')));
-      }
-    }
-  }
-
-  Future<void> _startVoiceInput() async {
-    try {
-      setState(() {
-        _isRecording = true;
-      });
-
-      final text = await _speechService.record();
-      setState(() {
-        _inputTextController.text = text;
-        _isRecording = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Voice input completed')));
-      }
-    } catch (e) {
-      setState(() {
-        _isRecording = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error with voice input: $e')));
       }
     }
   }
@@ -1078,30 +1046,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 runSpacing: 10,
                                 children: <Widget>[
                                   ElevatedButton.icon(
-                                    onPressed:
-                                        _isProcessingImage ||
-                                            _isRecording ||
-                                            _isProcessingPDF
+                                    onPressed: _isProcessingImage || _isProcessingPDF
                                         ? null
                                         : _openTextDialog,
                                     icon: const Icon(Icons.edit_note_rounded),
                                     label: const Text('Type Text'),
                                   ),
                                   OutlinedButton.icon(
-                                    onPressed:
-                                        _isProcessingImage ||
-                                            _isRecording ||
-                                            _isProcessingPDF
+                                    onPressed: _isProcessingImage || _isProcessingPDF
                                         ? null
                                         : _pickFile,
                                     icon: const Icon(Icons.folder_open_rounded),
                                     label: const Text('Upload File'),
                                   ),
                                   OutlinedButton.icon(
-                                    onPressed:
-                                        _isProcessingImage ||
-                                            _isRecording ||
-                                            _isProcessingPDF
+                                    onPressed: _isProcessingImage || _isProcessingPDF
                                         ? null
                                         : () => _showImageSourceDialog(),
                                     icon: _isProcessingPDF
@@ -1115,28 +1074,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                           : 'Scan Image',
                                     ),
                                   ),
-                                  FilledButton.tonalIcon(
-                                    onPressed:
-                                        _isProcessingImage ||
-                                            _isRecording ||
-                                            _isProcessingPDF
-                                        ? null
-                                        : _startVoiceInput,
-                                    icon: _isRecording
-                                        ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Icon(Icons.mic_none_rounded),
-                                    label: Text(
-                                      _isRecording
-                                          ? 'Recording...'
-                                          : 'Voice Input',
-                                    ),
-                                  ),
+
                                 ],
                               ),
                             ],
