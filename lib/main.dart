@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:smart_student_ai/app_controller.dart';
 import 'package:smart_student_ai/app_strings.dart';
+import 'package:smart_student_ai/notification_service.dart';
 import 'package:smart_student_ai/ai_service.dart';
 import 'launch_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
   await AIService.initialize();
+  await NotificationService.instance.initialize();
   runApp(const SmartStudentApp());
 }
 
@@ -87,8 +94,31 @@ class _LaunchLoadingScreen extends StatelessWidget {
           ),
         ),
         child: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'logo.png',
+                width: 120,
+                height: 120,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.school_rounded,
+                  size: 80,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colorScheme.primary.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

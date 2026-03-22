@@ -4,13 +4,31 @@ import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class SpeechService {
-  SpeechService({SpeechToText? speech}) : _speech = speech ?? SpeechToText();
+  SpeechService._internal({SpeechToText? speech}) : _speech = speech ?? SpeechToText();
+  
+  static final SpeechService instance = SpeechService._internal();
+  
+  // Factory constructor for backward compatibility if needed, 
+  // but we prefer using .instance
+  factory SpeechService({SpeechToText? speech}) => instance;
 
   final SpeechToText _speech;
   bool _useWhisper = true;
+  bool _isInitialized = false;
 
   void setUseWhisper(bool useWhisper) {
     _useWhisper = useWhisper;
+  }
+
+  Completer<String>? _activeCompleter;
+  String _currentTranscript = '';
+
+  Future<void> stop() async {
+    await _speech.stop();
+    if (_activeCompleter != null && !_activeCompleter!.isCompleted) {
+      _activeCompleter!.complete(_currentTranscript.trim());
+      _activeCompleter = null;
+    }
   }
 
   Future<String> record({
@@ -42,7 +60,8 @@ class SpeechService {
     }
 
     final completer = Completer<String>();
-    var transcript = '';
+    _activeCompleter = completer;
+    _currentTranscript = '';
     Timer? timer;
 
     // Configure locale for speech recognition
@@ -50,68 +69,84 @@ class SpeechService {
     if (locale != null) {
       switch (locale.languageCode) {
         case 'ar':
-          // Try multiple Arabic locales for better compatibility
-          localeId = 'ar_SA'; // Arabic (Saudi Arabia) - primary
-          // Fallback options could be added here if needed
+          localeId = 'ar_SA'; 
           break;
         case 'fr':
-          localeId = 'fr_FR'; // French (France)
+          localeId = 'fr_FR'; 
           break;
         case 'en':
         default:
-          localeId = 'en_US'; // English (US)
+          localeId = 'en_US'; 
           break;
       }
     }
 
-    final available = await _speech.initialize(
-      onError: (error) {
-        timer?.cancel();
-        if (!completer.isCompleted) {
-          // Check if the error is related to unsupported language
-          if (error.errorMsg.contains('not available') || 
-              error.errorMsg.contains('language') ||
-              error.errorMsg.contains('locale')) {
-            completer.completeError(
-              StateError('Speech recognition not available for ${locale?.languageCode ?? "this language"}. '
-                        'Please try using English or check if your device supports this language.')
-            );
-          } else {
-            completer.completeError(StateError(error.errorMsg));
+    if (!_isInitialized) {
+      debugPrint('Initializing SpeechToText...');
+      final available = await _speech.initialize(
+        onError: (error) {
+          debugPrint('Speech recognition error: ${error.errorMsg}');
+          timer?.cancel();
+          if (!completer.isCompleted) {
+            if (error.errorMsg.contains('not available') || 
+                error.errorMsg.contains('language') ||
+                error.errorMsg.contains('locale')) {
+              completer.completeError(
+                StateError('Speech recognition not available for ${locale?.languageCode ?? "this language"}. '
+                          'Please try using English or check if your device supports this language.')
+              );
+            } else {
+              completer.completeError(StateError(error.errorMsg));
+            }
           }
-        }
-      },
-    );
+        },
+        onStatus: (status) {
+          debugPrint('Speech recognition status: $status');
+        },
+      );
 
-    if (!available) {
-      throw StateError('Speech recognition is unavailable on this device.');
+      if (!available) {
+        debugPrint('Speech recognition initialization failed');
+        _isInitialized = false;
+        throw StateError('Speech recognition is unavailable on this device.');
+      }
+      _isInitialized = true;
+      debugPrint('SpeechToText initialized successfully');
     }
 
-    timer = Timer(duration, () {
+    // Create a timer that will complete the transcript if no final result is received
+    final transcriptTimer = Timer(duration, () {
+      debugPrint('Speech recognition timer expired');
       unawaited(_speech.stop());
       if (!completer.isCompleted) {
-        completer.complete(transcript.trim());
+        completer.complete(_currentTranscript.trim());
       }
     });
+    timer = transcriptTimer;
 
     await _speech.listen(
+      listenFor: duration,
+      pauseFor: const Duration(seconds: 2), // Stop automatically after 2 seconds of silence
       listenOptions: SpeechListenOptions(
         listenMode: ListenMode.dictation,
         partialResults: true,
+        cancelOnError: true,
       ),
       localeId: localeId,
       onResult: (result) {
-        transcript = result.recognizedWords;
+        _currentTranscript = result.recognizedWords;
+        debugPrint('Recognized words: $_currentTranscript (final: ${result.finalResult})');
         if (result.finalResult && !completer.isCompleted) {
-          timer?.cancel();
+          transcriptTimer.cancel();
           unawaited(_speech.stop());
-          completer.complete(transcript.trim());
+          completer.complete(_currentTranscript.trim());
         }
       },
     );
 
     final spokenText = await completer.future;
-    timer.cancel();
+    transcriptTimer.cancel();
+    _activeCompleter = null;
     return spokenText;
   }
 }

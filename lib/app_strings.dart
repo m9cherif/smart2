@@ -582,10 +582,10 @@ class AppStrings {
   );
 
   String get dictationListening => _pick(
-    en: 'Listening for 6 seconds...',
-    fr: 'Ecoute pendant 6 secondes...',
-    ar: 'جار الاستماع لمدة 6 ثوان...',
-  );
+       en: 'Listening for up to 60 seconds (will stop after 2s silence)...',
+        fr: 'Écoute (jusqu\'à 60s, s\'arrêtera après 2s de silence)...',
+        ar: 'جارٍ الاستماع حتى 60 ثانية (يتوقف بعد ثانيتين صمت)...',
+      );
 
   String get dictationNoSpeech => _pick(
     en: 'No speech was captured. Try again in a quieter environment.',
@@ -638,8 +638,39 @@ class AppStrings {
   String get dictationRecording =>
       _pick(en: 'Recording...', fr: 'Enregistrement...', ar: 'جار التسجيل...');
 
+  String get dictationStopRecording =>
+      _pick(en: 'Stop', fr: 'Arrêter', ar: 'إيقاف');
+
   String get dictationExpectedPassage =>
       _pick(en: 'Expected passage', fr: 'Texte attendu', ar: 'النص المتوقع');
+
+  String get plannerReminderLabel =>
+      _pick(en: 'Remind me', fr: 'Rappelle-moi', ar: 'ذكرني');
+
+  String reminderIntervalLabel(int? minutes) {
+    if (minutes == null) {
+      return _pick(en: 'None', fr: 'Aucun', ar: 'لا يوجد');
+    }
+    if (minutes == 60) {
+      return _pick(en: '1 hour before', fr: '1 heure avant', ar: 'قبل ساعة');
+    }
+    if (minutes == 120) {
+      return _pick(en: '2 hours before', fr: '2 heures avant', ar: 'قبل ساعتين');
+    }
+    if (minutes == 180) {
+      return _pick(en: '3 hours before', fr: '3 heures avant', ar: 'قبل 3 ساعات');
+    }
+    if (minutes == 1440) {
+      return _pick(en: '1 day before', fr: '1 jour avant', ar: 'قبل يوم');
+    }
+    if (minutes == 2880) {
+      return _pick(en: '2 days before', fr: '2 jours avant', ar: 'قبل يومين');
+    }
+    if (minutes == 4320) {
+      return _pick(en: '3 days before', fr: '3 jours avant', ar: 'قبل 3 أيام');
+    }
+    return '$minutes min';
+  }
 
   String get dictationCapturedSpeech =>
       _pick(en: 'Captured speech', fr: 'Parole capturee', ar: 'الكلام الملتقط');

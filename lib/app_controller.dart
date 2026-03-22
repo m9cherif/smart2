@@ -248,6 +248,15 @@ class AppController extends ChangeNotifier {
   }
 }
 
+class TaskEvents extends ChangeNotifier {
+  static final TaskEvents instance = TaskEvents._();
+  TaskEvents._();
+
+  void refresh() {
+    notifyListeners();
+  }
+}
+
 class AppScope extends InheritedNotifier<AppController> {
   const AppScope({
     super.key,

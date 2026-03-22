@@ -29,7 +29,7 @@ class DatabaseService {
     return factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: (db, version) async {
           await _createTaskTable(db);
           await _createLearningTables(db);
@@ -52,6 +52,11 @@ class DatabaseService {
               'ALTER TABLE student_progress ADD COLUMN grade INTEGER NOT NULL DEFAULT 7',
             );
           }
+          if (oldVersion < 5) {
+            await db.execute(
+              'ALTER TABLE tasks ADD COLUMN reminderMinutes INTEGER',
+            );
+          }
         },
       ),
     );
@@ -65,7 +70,8 @@ class DatabaseService {
         date TEXT NOT NULL,
         dueDate TEXT,
         priority TEXT NOT NULL DEFAULT 'Medium',
-        completed INTEGER NOT NULL DEFAULT 0
+        completed INTEGER NOT NULL DEFAULT 0,
+        reminderMinutes INTEGER
       )
     ''');
   }
@@ -188,6 +194,7 @@ class DatabaseService {
     required String title,
     required String priority,
     DateTime? dueDate,
+    int? reminderMinutes,
   }) async {
     final db = await database;
     return db.insert('tasks', <String, Object?>{
@@ -196,6 +203,7 @@ class DatabaseService {
       'dueDate': dueDate?.toIso8601String(),
       'priority': priority,
       'completed': 0,
+      'reminderMinutes': reminderMinutes,
     });
   }
 

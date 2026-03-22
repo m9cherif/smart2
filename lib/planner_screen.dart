@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'package:smart_student_ai/app_controller.dart';
 import 'package:smart_student_ai/app_strings.dart';
 import 'package:smart_student_ai/database_service.dart';
 import 'package:smart_student_ai/app_customization_panel.dart';
+import 'package:smart_student_ai/notification_service.dart';
 
 class PlannerScreen extends StatefulWidget {
   const PlannerScreen({super.key});
@@ -21,6 +23,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
   String? _errorMessage;
   String _selectedPriority = 'Medium';
   DateTime? _selectedDueDate;
+  int? _selectedReminderMinutes;
 
   @override
   void initState() {
@@ -70,16 +73,28 @@ class _PlannerScreenState extends State<PlannerScreen> {
     });
 
     try {
-      await _databaseService.insertTask(
+      final id = await _databaseService.insertTask(
         title: title,
         priority: _selectedPriority,
         dueDate: _selectedDueDate,
+        reminderMinutes: _selectedReminderMinutes,
       );
+
+      if (_selectedDueDate != null && _selectedReminderMinutes != null) {
+        await NotificationService.instance.scheduleTaskReminder(
+          id: id,
+          title: title,
+          dueDate: _selectedDueDate!,
+          reminderMinutes: _selectedReminderMinutes!,
+        );
+      }
 
       _controller.clear();
       _selectedDueDate = null;
       _selectedPriority = 'Medium';
+      _selectedReminderMinutes = null;
       await _loadTasks();
+      TaskEvents.instance.refresh(); // Notify other screens
       if (!mounted) {
         return;
       }
@@ -133,7 +148,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
     final strings = AppStrings.of(context);
     try {
       await _databaseService.deleteTask(task.id);
+      await NotificationService.instance.cancelReminder(task.id);
       await _loadTasks();
+      TaskEvents.instance.refresh(); // Notify other screens
       if (!mounted) {
         return;
       }
@@ -161,6 +178,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
     try {
       final removedCount = await _databaseService.deleteCompletedTasks();
       await _loadTasks();
+      TaskEvents.instance.refresh(); // Notify other screens
       if (!mounted) {
         return;
       }
@@ -314,6 +332,34 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int?>(
+                      initialValue: _selectedReminderMinutes,
+                      decoration: InputDecoration(
+                        labelText: strings.plannerReminderLabel,
+                      ),
+                      items: [
+                        null,
+                        60,
+                        120,
+                        180,
+                        1440,
+                        2880,
+                        4320
+                      ].map((minutes) {
+                        return DropdownMenuItem<int?>(
+                          value: minutes,
+                          child: Text(
+                            strings.reminderIntervalLabel(minutes),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedReminderMinutes = value;
+                        });
+                      },
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -501,10 +547,24 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           ],
                         ),
                       ),
-                      trailing: IconButton(
-                        onPressed: () => _deleteTask(task),
-                        tooltip: strings.plannerDeleteTaskTooltip,
-                        icon: const Icon(Icons.delete_outline_rounded),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          if (task.reminderMinutes != null && !task.completed)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Icon(
+                                Icons.notifications_active_rounded,
+                                size: 20,
+                                color: Color(0xFFE38B29),
+                              ),
+                            ),
+                          IconButton(
+                            onPressed: () => _deleteTask(task),
+                            tooltip: strings.plannerDeleteTaskTooltip,
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -610,6 +670,7 @@ class PlannerTask {
     required this.completed,
     required this.createdAt,
     required this.dueDate,
+    required this.reminderMinutes,
   });
 
   factory PlannerTask.fromMap(Map<String, dynamic> map) {
@@ -621,6 +682,7 @@ class PlannerTask {
       createdAt:
           DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now(),
       dueDate: DateTime.tryParse(map['dueDate'] as String? ?? ''),
+      reminderMinutes: map['reminderMinutes'] as int?,
     );
   }
 
@@ -630,4 +692,5 @@ class PlannerTask {
   final bool completed;
   final DateTime createdAt;
   final DateTime? dueDate;
+  final int? reminderMinutes;
 }

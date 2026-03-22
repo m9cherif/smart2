@@ -52,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.initState();
     _loadProgress();
     _loadTodayTasks();
+    TaskEvents.instance.addListener(_loadTodayTasks);
     _initializeAnimations();
   }
 
@@ -88,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _toggleTaskCompletion(int taskId, bool completed) async {
     try {
       await DatabaseService.instance.updateTaskStatus(taskId, completed);
-      await _loadTodayTasks(); // Refresh the task list
+      TaskEvents.instance.refresh(); // Notify everyone else and ourselves
     } catch (e) {
       // Handle error silently or show a snackbar
     }
@@ -332,25 +333,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 children: [
                   const Text('Generated Summary'),
                   const Spacer(),
-                  if (AIService.lastGeneratedSummary.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _showLastSummary();
-                      },
-                      icon: const Icon(Icons.history, size: 16),
-                      label: const Text(
-                        'View Last',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        minimumSize: const Size(0, 32),
-                      ),
-                    ),
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.of(context).pop(),
@@ -380,41 +362,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _isGeneratingSummary = false;
         });
       }
-    }
-  }
-
-  void _showLastSummary() {
-    if (AIService.lastGeneratedSummary.isNotEmpty) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Row(
-              children: [
-                const Text('Last Generated Summary'),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Text(AIService.lastGeneratedSummary),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-            ],
-          );
-        },
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No previous summary found')),
-      );
     }
   }
 
@@ -539,6 +486,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    TaskEvents.instance.removeListener(_loadTodayTasks);
     _inputTextController.dispose();
     _heroAnimationController.dispose();
     _cardsAnimationController.dispose();
@@ -711,37 +659,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: <Widget>[
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.primary,
-                                        borderRadius: BorderRadius.circular(
-                                          999,
+                                    Flexible(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
                                         ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: colorScheme.primary
-                                                .withValues(alpha: 0.3),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 2),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
                                           ),
-                                        ],
-                                      ),
-                                      child: Text(
-                                        'TASKS',
-                                        style: TextStyle(
-                                          color: colorScheme.onPrimary,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 1.2,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: colorScheme.primary
+                                                  .withValues(alpha: 0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          'TASKS',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: colorScheme.onPrimary,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 1.2,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                    const Spacer(),
+                                    const SizedBox(width: 8),
                                     Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
@@ -809,14 +761,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                           size: 24,
                                         ),
                                         const SizedBox(width: 12),
-                                        Text(
-                                          'All tasks completed!',
-                                          style: theme.textTheme.titleMedium
-                                              ?.copyWith(
-                                                color: colorScheme.primary,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 16,
-                                              ),
+                                        Expanded(
+                                          child: Text(
+                                            'All tasks completed!',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                                  color: colorScheme.primary,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 16,
+                                                ),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -1113,7 +1068,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   fillColor: _isProcessingPDF
                                       ? Theme.of(
                                           context,
-                                        ).disabledColor.withOpacity(0.1)
+                                        ).disabledColor.withValues(alpha: 0.1)
                                       : colorScheme.surface,
                                 ),
                               ),
@@ -1200,7 +1155,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 icon: Icons.summarize_rounded,
                                 color: colorScheme.primary,
                                 isLoading: _isGeneratingSummary,
-                                onViewLast: _showLastSummary,
                                 onGenerate: _generateSummary,
                               ),
                             ),
@@ -1380,11 +1334,17 @@ class _FeatureCardState extends State<_FeatureCard>
                               children: <Widget>[
                                 Text(
                                   widget.entry.title,
-                                  style: theme.textTheme.titleLarge,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
                                   widget.entry.subtitle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: colorScheme.onSurfaceVariant,
                                   ),
@@ -1397,27 +1357,35 @@ class _FeatureCardState extends State<_FeatureCard>
                       const SizedBox(height: 16),
                       Row(
                         children: <Widget>[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: widget.entry.accent.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              widget.entry.badge,
-                              style: TextStyle(
-                                color: widget.entry.accent,
-                                fontWeight: FontWeight.w700,
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: widget.entry.accent.withValues(
+                                  alpha: 0.1,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                widget.entry.badge.toUpperCase(),
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: widget.entry.accent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.6,
+                                ),
                               ),
                             ),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 8),
                           Icon(
                             Icons.arrow_forward_rounded,
                             color: colorScheme.onSurfaceVariant,
+                            size: 20,
                           ),
                         ],
                       ),
@@ -1459,7 +1427,6 @@ class _GenerationButtonSection extends StatelessWidget {
     required this.color,
     required this.onGenerate,
     this.isLoading = false,
-    this.onViewLast,
   });
 
   final String title;
@@ -1468,7 +1435,6 @@ class _GenerationButtonSection extends StatelessWidget {
   final Color color;
   final VoidCallback onGenerate;
   final bool isLoading;
-  final VoidCallback? onViewLast;
 
   @override
   Widget build(BuildContext context) {
@@ -1524,26 +1490,8 @@ class _GenerationButtonSection extends StatelessWidget {
           // Action Buttons Row
           Row(
             children: [
-              // View Last Button (only for Summary section)
-              if (onViewLast != null) ...[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onViewLast,
-                    icon: const Icon(Icons.history, size: 16),
-                    label: const Text('View Last'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: color,
-                      side: BorderSide(color: color),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-
               // Generation Button
               Expanded(
-                flex: onViewLast != null ? 2 : 1,
                 child: FilledButton.icon(
                   onPressed: isLoading ? null : onGenerate,
                   icon: isLoading

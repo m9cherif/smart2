@@ -12,6 +12,7 @@ import 'package:smart_student_ai/text_normalizer.dart';
 import 'package:smart_student_ai/database_service.dart';
 import 'package:smart_student_ai/speech_service.dart';
 import 'package:smart_student_ai/app_customization_panel.dart';
+import 'package:smart_student_ai/ai_service.dart';
 
 class DictationScreen extends StatefulWidget {
   const DictationScreen({super.key});
@@ -107,6 +108,9 @@ class _DictationScreenState extends State<DictationScreen> {
               'bmp',
               'webp',
               'heic',
+              'pdf',
+              'doc',
+              'docx',
             ],
           )
           .timeout(const Duration(seconds: 30), onTimeout: () => null);
@@ -163,10 +167,20 @@ class _DictationScreenState extends State<DictationScreen> {
     });
 
     try {
-      debugPrint('Starting OCR for file: $path');
-      _currentOCRTask = _ocrService.readText(path);
-      final text = await _currentOCRTask!;
-      debugPrint('OCR result: "$text"');
+      final String text;
+      final ext = path.split('.').last.toLowerCase();
+      final isImage = ['jpg', 'jpeg', 'png', 'bmp', 'webp', 'heic'].contains(ext);
+      
+      if (isImage) {
+        debugPrint('Starting OCR for image: $path');
+        _currentOCRTask = _ocrService.readText(path);
+        text = await _currentOCRTask!;
+      } else {
+        debugPrint('Extracting text from document: $path');
+        text = await AIService.extractTextFromFile(File(path));
+      }
+      
+      debugPrint('Text extracted: "$text"');
       debugPrint('Text length: ${text.length}');
       if (!mounted) {
         return;
@@ -240,7 +254,7 @@ class _DictationScreenState extends State<DictationScreen> {
     try {
       final controller = AppScope.of(context);
       final speech = await _speechService.record(
-        duration: const Duration(seconds: 6),
+        duration: const Duration(seconds: 60),
         locale: controller.locale,
       );
       if (!mounted) {
@@ -276,6 +290,10 @@ class _DictationScreenState extends State<DictationScreen> {
         });
       }
     }
+  }
+
+  Future<void> _stopRecording() async {
+    await _speechService.stop();
   }
 
   void _resetSession() {
@@ -462,14 +480,22 @@ class _DictationScreenState extends State<DictationScreen> {
                         icon: const Icon(Icons.photo_library_outlined),
                         label: Text(strings.dictationGallery),
                       ),
-                      FilledButton.tonalIcon(
-                        onPressed: _isRecording ? null : _recordSpeech,
-                        icon: const Icon(Icons.mic_none_rounded),
+                       FilledButton.tonalIcon(
+                        onPressed: _isRecording ? _stopRecording : _recordSpeech,
+                        icon: Icon(
+                          _isRecording ? Icons.stop_rounded : Icons.mic_none_rounded,
+                        ),
                         label: Text(
                           _isRecording
-                              ? strings.dictationRecording
+                              ? strings.dictationStopRecording
                               : strings.dictationRecord,
                         ),
+                        style: _isRecording
+                            ? FilledButton.styleFrom(
+                                backgroundColor: theme.colorScheme.errorContainer,
+                                foregroundColor: theme.colorScheme.onErrorContainer,
+                              )
+                            : null,
                       ),
                     ],
                   ),
@@ -582,6 +608,9 @@ class _DictationScreenState extends State<DictationScreen> {
       ),
     );
   }
+
+
+
 
   DictationAnalysis _buildAnalysis(String expectedText, String spokenText) {
     final expectedWords = TextNormalizer.tokenize(expectedText);
