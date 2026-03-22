@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_student_ai/database_service.dart';
 
 class InteractiveQuizDialog extends StatefulWidget {
   const InteractiveQuizDialog({
@@ -141,7 +142,9 @@ class _InteractiveQuizDialogState extends State<InteractiveQuizDialog> {
                           if (isCorrectOption) {
                             // Always show the correct option highlighted in green
                             borderColor = Colors.green;
-                            backgroundColor = Colors.green.withValues(alpha: 0.1);
+                            backgroundColor = Colors.green.withValues(
+                              alpha: 0.1,
+                            );
                             textColor = Colors.green.shade700;
                             trailIcon = Icons.check_circle;
                             iconColor = Colors.green.shade600;
@@ -308,7 +311,7 @@ class _InteractiveQuizDialogState extends State<InteractiveQuizDialog> {
     return _userAnswers[_currentQuestionIndex] != null;
   }
 
-  void _handleNextAction() {
+  Future<void> _handleNextAction() async {
     if (!_canSubmit()) return;
 
     if (!_showAnswerForCurrent) {
@@ -317,9 +320,33 @@ class _InteractiveQuizDialogState extends State<InteractiveQuizDialog> {
       final correctAnswer = currentQuestion['correct_answer'] as int;
       final userAnswer = _userAnswers[_currentQuestionIndex];
 
+      bool isCorrect = userAnswer == correctAnswer;
+
+      if (isCorrect) {
+        try {
+          final result = await DatabaseService.instance.recordQuizAnswer(true);
+
+          if (mounted && result.xpEarned > 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  result.leveledUp
+                      ? 'Awesome! You leveled up! (+${result.xpEarned} XP)'
+                      : 'Correct! +${result.xpEarned} XP',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                backgroundColor: Colors.green.shade600,
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } catch (_) {}
+      }
+
       setState(() {
         _showAnswerForCurrent = true;
-        if (userAnswer == correctAnswer) {
+        if (isCorrect) {
           _score++;
         }
       });

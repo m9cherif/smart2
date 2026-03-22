@@ -1233,7 +1233,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
               const SizedBox(height: 24),
-              // Level and XP Section (moved to bottom)
+              // Level and XP Section
               if (_isLoadingProgress)
                 Card(
                   child: Padding(

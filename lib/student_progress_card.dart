@@ -33,13 +33,13 @@ class _StudentProgressCardState extends State<StudentProgressCard>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    _progressAnimation = Tween<double>(
-      begin: 0.0,
-      end: widget.progress.levelProgress,
-    ).animate(CurvedAnimation(
-      parent: _progressController,
-      curve: Curves.easeOutCubic,
-    ));
+    _progressAnimation =
+        Tween<double>(begin: 0.0, end: widget.progress.levelProgress).animate(
+          CurvedAnimation(
+            parent: _progressController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
     _progressController.forward();
   }
 
@@ -47,13 +47,16 @@ class _StudentProgressCardState extends State<StudentProgressCard>
   void didUpdateWidget(StudentProgressCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.progress.levelProgress != widget.progress.levelProgress) {
-      _progressAnimation = Tween<double>(
-        begin: _progressAnimation.value,
-        end: widget.progress.levelProgress,
-      ).animate(CurvedAnimation(
-        parent: _progressController,
-        curve: Curves.easeOutCubic,
-      ));
+      _progressAnimation =
+          Tween<double>(
+            begin: _progressAnimation.value,
+            end: widget.progress.levelProgress,
+          ).animate(
+            CurvedAnimation(
+              parent: _progressController,
+              curve: Curves.easeOutCubic,
+            ),
+          );
       _progressController
         ..reset()
         ..forward();
@@ -140,73 +143,7 @@ class _StudentProgressCardState extends State<StudentProgressCard>
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: <Widget>[
-                _ProgressMetric(
-                  label: widget.strings.progressQuestionsLabel,
-                  value: '${widget.progress.revisionCount}',
-                  accent: const Color(0xFF2A7F62),
-                ),
-                _ProgressMetric(
-                  label: widget.strings.progressDictationsLabel,
-                  value: '${widget.progress.dictationCount}',
-                  accent: colorScheme.secondary,
-                ),
-              ],
-            ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressMetric extends StatelessWidget {
-  const _ProgressMetric({
-    required this.label,
-    required this.value,
-    required this.accent,
-  });
-
-  final String label;
-  final String value;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SizedBox(
-      width: 156,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: accent.withValues(alpha: 0.08),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: accent,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

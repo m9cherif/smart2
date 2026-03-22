@@ -48,7 +48,9 @@ class DatabaseService {
             await _createLearningTables(db);
           }
           if (oldVersion < 4) {
-            await db.execute('ALTER TABLE student_progress ADD COLUMN grade INTEGER NOT NULL DEFAULT 7');
+            await db.execute(
+              'ALTER TABLE student_progress ADD COLUMN grade INTEGER NOT NULL DEFAULT 7',
+            );
           }
         },
       ),
@@ -208,11 +210,12 @@ class DatabaseService {
 
   Future<List<Map<String, dynamic>>> getTodayTasks() async {
     final db = await database;
-    
+
     return db.query(
       'tasks',
       where: 'completed = 0',
-      orderBy: "CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END, dueDate ASC",
+      orderBy:
+          "CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END, dueDate ASC",
     );
   }
 
@@ -317,6 +320,36 @@ class DatabaseService {
         current: previous,
         xpDelta: xpEarned,
         dictationDelta: 1,
+      );
+
+      return ProgressAwardResult(
+        progress: updated,
+        xpEarned: xpEarned,
+        leveledUp: updated.level > previous.level,
+      );
+    });
+  }
+
+  Future<ProgressAwardResult> recordQuizAnswer(bool isCorrect) async {
+    final db = await database;
+
+    return db.transaction((txn) async {
+      await _ensureStudentProgressRow(txn);
+      final previous = await _readStudentProgress(txn);
+      final xpEarned = isCorrect ? 20 : 0;
+
+      if (xpEarned == 0) {
+        return ProgressAwardResult(
+          progress: previous,
+          xpEarned: 0,
+          leveledUp: false,
+        );
+      }
+
+      final updated = await _updateStudentProgress(
+        txn,
+        current: previous,
+        xpDelta: xpEarned,
       );
 
       return ProgressAwardResult(
