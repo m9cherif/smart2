@@ -381,7 +381,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<int?>(
-                      value: [null, 60, 120, 180, 240, 480, 1440, 2880, 4320].contains(_selectedReminderMinutes)
+                      initialValue: [null, 60, 120, 180, 240, 480, 1440, 2880, 4320].contains(_selectedReminderMinutes)
                           ? _selectedReminderMinutes
                           : -1,
                       decoration: InputDecoration(
@@ -716,7 +716,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<int>(
-                value: currentMultiplier,
+                initialValue: currentMultiplier,
                 items: [
                   DropdownMenuItem(value: 1, child: Text(strings.plannerMinutesLabel)),
                   DropdownMenuItem(value: 60, child: Text(strings.plannerHoursLabel)),

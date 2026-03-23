@@ -18,34 +18,32 @@ class NotificationService {
 
   Future<void> initialize() async {
     tz.initializeTimeZones();
-    final dynamic tzInfo = await FlutterTimezone.getLocalTimezone();
-    String? timeZoneName;
-    
-    if (tzInfo is String) {
-      timeZoneName = tzInfo;
-    } else {
-      try {
-        // Try getting it from the 'timezone' property (List<String>)
-        final List<dynamic>? list = (tzInfo as dynamic).timezone;
-        if (list != null && list.isNotEmpty) {
-          timeZoneName = list.first.toString();
-        }
-      } catch (_) {}
-      
-      // If that failed, parse the toString() which looks like "TimezoneInfo(Europe/Paris, ...)"
-      if (timeZoneName == null) {
-        final String raw = tzInfo.toString();
-        final match = RegExp(r'\(([^,\)]+)').firstMatch(raw);
+
+    String timeZoneName = 'UTC';
+    try {
+      final result = await FlutterTimezone.getLocalTimezone();
+      final raw = result.toString();
+      debugPrint('NotificationService: raw timezone result = "$raw"');
+
+      // If it's a plain IANA string like "Europe/Paris", use it directly
+      if (raw.contains('/') && !raw.contains('(')) {
+        timeZoneName = raw.trim();
+      } else {
+        // Parse from "TimezoneInfo(Europe/Paris, ...)" or similar
+        final match = RegExp(r'([A-Za-z]+/[A-Za-z_]+)').firstMatch(raw);
         if (match != null) {
-          timeZoneName = match.group(1);
+          timeZoneName = match.group(1)!;
         }
       }
+    } catch (e) {
+      debugPrint('NotificationService: Failed to get timezone: $e');
     }
 
     try {
-      tz.setLocalLocation(tz.getLocation(timeZoneName ?? 'UTC'));
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+      debugPrint('NotificationService: Timezone set to $timeZoneName');
     } catch (e) {
-      debugPrint('Could not set local timezone "$timeZoneName", falling back to UTC: $e');
+      debugPrint('NotificationService: Could not set "$timeZoneName", falling back to UTC: $e');
       tz.setLocalLocation(tz.UTC);
     }
 
