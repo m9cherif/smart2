@@ -15,53 +15,77 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   final List<_DesktopReminder> _desktopReminders = [];
   Timer? _desktopTimer;
+  bool _isInitialized = false;
 
   Future<void> initialize() async {
-    tz.initializeTimeZones();
-
-    String timeZoneName = 'UTC';
+    if (_isInitialized) return;
+    
     try {
-      final result = await FlutterTimezone.getLocalTimezone();
-      final raw = result.toString();
-      debugPrint('NotificationService: raw timezone result = "$raw"');
+      tz.initializeTimeZones();
 
-      // If it's a plain IANA string like "Europe/Paris", use it directly
-      if (raw.contains('/') && !raw.contains('(')) {
-        timeZoneName = raw.trim();
-      } else {
-        // Parse from "TimezoneInfo(Europe/Paris, ...)" or similar
-        final match = RegExp(r'([A-Za-z]+/[A-Za-z_]+)').firstMatch(raw);
-        if (match != null) {
-          timeZoneName = match.group(1)!;
+      String timeZoneName = 'UTC';
+      try {
+        final result = await FlutterTimezone.getLocalTimezone();
+        final raw = result.toString();
+        debugPrint('NotificationService: raw timezone result = "$raw"');
+
+        // If it's a plain IANA string like "Europe/Paris", use it directly
+        if (raw.contains('/') && !raw.contains('(')) {
+          timeZoneName = raw.trim();
+        } else {
+          // Parse from "TimezoneInfo(Europe/Paris, ...)" or similar
+          final match = RegExp(r'([A-Za-z]+/[A-Za-z_]+)').firstMatch(raw);
+          if (match != null) {
+            timeZoneName = match.group(1)!;
+          }
+        }
+      } catch (e) {
+        debugPrint('NotificationService: Failed to get timezone: $e');
+      }
+
+      try {
+        tz.setLocalLocation(tz.getLocation(timeZoneName));
+        debugPrint('NotificationService: Timezone set to $timeZoneName');
+      } catch (e) {
+        debugPrint('NotificationService: Could not set "$timeZoneName", falling back to UTC: $e');
+        tz.setLocalLocation(tz.UTC);
+      }
+
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        await localNotifier.setup(
+          appName: 'Smart Student AI',
+        );
+      }
+
+      const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
+      const iosSettings = DarwinInitializationSettings();
+
+      const initializationSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+
+      await _notifications.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: (details) {
+          debugPrint('Notification tapped: ${details.payload}');
+        },
+      );
+
+      // Handle Android 13+ permissions
+      if (Platform.isAndroid) {
+        final androidPlugin = _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        if (androidPlugin != null) {
+          await androidPlugin.requestNotificationsPermission();
+          await androidPlugin.requestExactAlarmsPermission();
         }
       }
+
+      _isInitialized = true;
     } catch (e) {
-      debugPrint('NotificationService: Failed to get timezone: $e');
+      debugPrint('NotificationService: Initialization failed: $e');
     }
-
-    try {
-      tz.setLocalLocation(tz.getLocation(timeZoneName));
-      debugPrint('NotificationService: Timezone set to $timeZoneName');
-    } catch (e) {
-      debugPrint('NotificationService: Could not set "$timeZoneName", falling back to UTC: $e');
-      tz.setLocalLocation(tz.UTC);
-    }
-
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      await localNotifier.setup(
-        appName: 'Smart Student AI',
-      );
-    }
-
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings();
-
-    const initializationSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
-
-    await _notifications.initialize(initializationSettings);
   }
 
   Future<bool> scheduleTaskReminder({
@@ -74,6 +98,10 @@ class NotificationService {
     
     if (scheduledDate.isBefore(DateTime.now())) {
       return false; // Cannot schedule in the past
+    }
+
+    if (!_isInitialized) {
+      await initialize();
     }
 
     if (Platform.isWindows || Platform.isLinux) {
@@ -173,7 +201,13 @@ class NotificationService {
 
   Future<void> cancelReminder(int id) async {
     _desktopReminders.removeWhere((r) => r.id == id);
-    await _notifications.cancel(id);
+    if (_isInitialized) {
+      try {
+        await _notifications.cancel(id);
+      } catch (e) {
+        debugPrint('NotificationService: Failed to cancel reminder $id: $e');
+      }
+    }
   }
 }
 

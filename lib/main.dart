@@ -7,18 +7,49 @@ import 'package:smart_student_ai/app_strings.dart';
 import 'package:smart_student_ai/notification_service.dart';
 import 'package:smart_student_ai/ai_service.dart';
 import 'package:smart_student_ai/tray_service.dart';
+import 'package:smart_student_ai/database_service.dart';
 import 'launch_gate.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-  await AIService.initialize();
-  await NotificationService.instance.initialize();
-  await TrayService.instance.initialize();
-  runApp(const SmartStudentApp());
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    
+    debugPrint('Main: Starting service initializations...');
+    
+    await AIService.initialize();
+    debugPrint('Main: AIService initialized');
+    
+    await NotificationService.instance.initialize();
+    debugPrint('Main: NotificationService initialized');
+    
+    await TrayService.instance.initialize();
+    debugPrint('Main: TrayService initialized');
+    
+    // Pre-initialize database to catch storage errors early
+    try {
+      await DatabaseService.instance.database;
+      debugPrint('Main: DatabaseService initialized');
+    } catch (dbError) {
+      debugPrint('Main: Database initialization failed: $dbError');
+      // We don't crash here, but we've logged it
+    }
+
+    runApp(const SmartStudentApp());
+  } catch (e, stack) {
+    debugPrint('Main: FATAL ERROR during startup: $e');
+    debugPrint(stack.toString());
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text('Fatal error during app startup: $e'),
+        ),
+      ),
+    ));
+  }
 }
 
 class SmartStudentApp extends StatefulWidget {

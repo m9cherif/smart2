@@ -11,8 +11,11 @@ class DatabaseService {
   static final DatabaseService instance = DatabaseService._();
   static const int xpPerLevel = 100;
 
-  static Database? _database;
+  bool _isInitialized = false;
+  Database? _database;
   DatabaseFactory? _databaseFactory;
+
+  bool get isReady => _isInitialized;
 
   Future<Database> get database async {
     if (_database != null) {
@@ -23,43 +26,50 @@ class DatabaseService {
   }
 
   Future<Database> _initDatabase() async {
-    final factory = await _resolveDatabaseFactory();
-    final path = await _resolveDatabasePath();
+    try {
+      final factory = await _resolveDatabaseFactory();
+      final path = await _resolveDatabasePath();
 
-    return factory.openDatabase(
-      path,
-      options: OpenDatabaseOptions(
-        version: 5,
-        onCreate: (db, version) async {
-          await _createTaskTable(db);
-          await _createLearningTables(db);
-        },
-        onUpgrade: (db, oldVersion, newVersion) async {
-          if (oldVersion < 2) {
-            await db.execute('ALTER TABLE tasks ADD COLUMN dueDate TEXT');
-            await db.execute(
-              "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'Medium'",
-            );
-            await db.execute(
-              'ALTER TABLE tasks ADD COLUMN completed INTEGER NOT NULL DEFAULT 0',
-            );
-          }
-          if (oldVersion < 3) {
+      final db = await factory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 5,
+          onCreate: (db, version) async {
+            await _createTaskTable(db);
             await _createLearningTables(db);
-          }
-          if (oldVersion < 4) {
-            await db.execute(
-              'ALTER TABLE student_progress ADD COLUMN grade INTEGER NOT NULL DEFAULT 7',
-            );
-          }
-          if (oldVersion < 5) {
-            await db.execute(
-              'ALTER TABLE tasks ADD COLUMN reminderMinutes INTEGER',
-            );
-          }
-        },
-      ),
-    );
+          },
+          onUpgrade: (db, oldVersion, newVersion) async {
+            if (oldVersion < 2) {
+              await db.execute('ALTER TABLE tasks ADD COLUMN dueDate TEXT');
+              await db.execute(
+                "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'Medium'",
+              );
+              await db.execute(
+                'ALTER TABLE tasks ADD COLUMN completed INTEGER NOT NULL DEFAULT 0',
+              );
+            }
+            if (oldVersion < 3) {
+              await _createLearningTables(db);
+            }
+            if (oldVersion < 4) {
+              await db.execute(
+                'ALTER TABLE student_progress ADD COLUMN grade INTEGER NOT NULL DEFAULT 7',
+              );
+            }
+            if (oldVersion < 5) {
+              await db.execute(
+                'ALTER TABLE tasks ADD COLUMN reminderMinutes INTEGER',
+              );
+            }
+          },
+        ),
+      );
+      _isInitialized = true;
+      return db;
+    } catch (e) {
+      debugPrint('DatabaseService: Initialization failed: $e');
+      rethrow;
+    }
   }
 
   Future<void> _createTaskTable(DatabaseExecutor db) async {
@@ -149,21 +159,26 @@ class DatabaseService {
       );
     }
 
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.windows:
-      case TargetPlatform.linux:
-        sqfliteFfiInit();
-        _databaseFactory = databaseFactoryFfi;
-        return _databaseFactory!;
-      case TargetPlatform.android:
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-        _databaseFactory = databaseFactory;
-        return _databaseFactory!;
-      case TargetPlatform.fuchsia:
-        throw UnsupportedError(
-          'Study Planner is not supported on this platform.',
-        );
+    try {
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.windows:
+        case TargetPlatform.linux:
+          sqfliteFfiInit();
+          _databaseFactory = databaseFactoryFfi;
+          return _databaseFactory!;
+        case TargetPlatform.android:
+        case TargetPlatform.iOS:
+        case TargetPlatform.macOS:
+          _databaseFactory = databaseFactory;
+          return _databaseFactory!;
+        case TargetPlatform.fuchsia:
+          throw UnsupportedError(
+            'Study Planner is not supported on this platform.',
+          );
+      }
+    } catch (e) {
+      debugPrint('DatabaseService: Failed to resolve factory: $e');
+      rethrow;
     }
   }
 
@@ -174,19 +189,24 @@ class DatabaseService {
       );
     }
 
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.windows:
-      case TargetPlatform.linux:
-        final supportDirectory = await getApplicationSupportDirectory();
-        return join(supportDirectory.path, 'planner.db');
-      case TargetPlatform.android:
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-        return join(await getDatabasesPath(), 'planner.db');
-      case TargetPlatform.fuchsia:
-        throw UnsupportedError(
-          'Study Planner is not supported on this platform.',
-        );
+    try {
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.windows:
+        case TargetPlatform.linux:
+          final supportDirectory = await getApplicationSupportDirectory();
+          return join(supportDirectory.path, 'planner.db');
+        case TargetPlatform.android:
+        case TargetPlatform.iOS:
+        case TargetPlatform.macOS:
+          return join(await getDatabasesPath(), 'planner.db');
+        case TargetPlatform.fuchsia:
+          throw UnsupportedError(
+            'Study Planner is not supported on this platform.',
+          );
+      }
+    } catch (e) {
+      debugPrint('DatabaseService: Failed to resolve path: $e');
+      rethrow;
     }
   }
 

@@ -102,7 +102,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(strings.plannerTaskAddedMessage())),
       );
-    } catch (error) {
+    } catch (error, stack) {
+      debugPrint('PlannerScreen: Error adding task: $error');
+      debugPrint(stack.toString());
       if (!mounted) {
         return;
       }
@@ -127,7 +129,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
     try {
       await _databaseService.updateTaskStatus(task.id, completed);
       await _loadTasks();
-    } catch (error) {
+    } catch (error, stack) {
+      debugPrint('PlannerScreen: Error toggling task: $error');
+      debugPrint(stack.toString());
       if (!mounted) {
         return;
       }
@@ -158,7 +162,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(strings.plannerTaskRemovedMessage(task.title))),
       );
-    } catch (error) {
+    } catch (error, stack) {
+      debugPrint('PlannerScreen: Error deleting task: $error');
+      debugPrint(stack.toString());
       if (!mounted) {
         return;
       }
