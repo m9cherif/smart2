@@ -381,32 +381,38 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<int?>(
-                      initialValue: _selectedReminderMinutes,
+                      value: [null, 60, 120, 180, 240, 480, 1440, 2880, 4320].contains(_selectedReminderMinutes)
+                          ? _selectedReminderMinutes
+                          : -1,
                       decoration: InputDecoration(
                         labelText: strings.plannerReminderLabel,
                       ),
                       items: [
-                        null,
-                        60,
-                        120,
-                        180,
-                        240,
-                        480,
-                        1440,
-                        2880,
-                        4320
-                      ].map((minutes) {
-                        return DropdownMenuItem<int?>(
-                          value: minutes,
-                          child: Text(
-                            strings.reminderIntervalLabel(minutes),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedReminderMinutes = value;
-                        });
+                        DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text(strings.reminderIntervalLabel(null)),
+                        ),
+                        ...[60, 120, 180, 240, 480, 1440, 2880, 4320].map((m) =>
+                          DropdownMenuItem<int?>(
+                            value: m,
+                            child: Text(strings.reminderIntervalLabel(m)),
+                          )
+                        ),
+                        DropdownMenuItem<int?>(
+                          value: -1,
+                          child: Text(_selectedReminderMinutes != null && ![60, 120, 180, 240, 480, 1440, 2880, 4320].contains(_selectedReminderMinutes)
+                              ? strings.reminderIntervalLabel(_selectedReminderMinutes)
+                              : strings.plannerCustomReminder),
+                        ),
+                      ],
+                      onChanged: (value) async {
+                        if (value == -1) {
+                          await _pickCustomReminder();
+                        } else {
+                          setState(() {
+                            _selectedReminderMinutes = value;
+                          });
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
@@ -434,25 +440,25 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     TextButton.icon(
                       onPressed: () async {
                         final now = DateTime.now();
-                        final testTime = now.add(const Duration(minutes: 1));
+                        final testTime = now.add(const Duration(seconds: 10));
                         final success = await NotificationService.instance.scheduleTaskReminder(
                           id: 9999,
                           title: "Test Reminder",
-                          dueDate: testTime.add(const Duration(seconds: 10)), // Just after
+                          dueDate: testTime.add(const Duration(seconds: 5)), // Just after
                           reminderMinutes: 0, // Remind exactly at testTime
                         );
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(success 
-                                ? 'Test reminder scheduled for 1 minute from now.' 
+                                ? 'Test reminder scheduled for 10 seconds from now.' 
                                 : 'Failed to schedule test reminder.'),
                             ),
                           );
                         }
                       },
                       icon: const Icon(Icons.bug_report_rounded, size: 16),
-                      label: const Text('Test Reminder (1 min)'),
+                      label: const Text('Test Reminder (10 sec)'),
                     ),
                   ],
                 ),
@@ -672,6 +678,84 @@ class _PlannerScreenState extends State<PlannerScreen> {
     }
 
     return error.toString();
+  }
+
+  Future<void> _pickCustomReminder() async {
+    final strings = AppStrings.of(context);
+    int currentMinutes = _selectedReminderMinutes ?? 60;
+    
+    int value = currentMinutes;
+    int multiplier = 1;
+    
+    if (currentMinutes % 1440 == 0) {
+      value = currentMinutes ~/ 1440;
+      multiplier = 1440;
+    } else if (currentMinutes % 60 == 0) {
+      value = currentMinutes ~/ 60;
+      multiplier = 60;
+    }
+
+    final controller = TextEditingController(text: value.toString());
+    int currentMultiplier = multiplier;
+
+    final int? result = await showDialog<int?>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(strings.plannerCustomReminder),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: strings.plannerCustomReminderPrompt,
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: currentMultiplier,
+                items: [
+                  DropdownMenuItem(value: 1, child: Text(strings.plannerMinutesLabel)),
+                  DropdownMenuItem(value: 60, child: Text(strings.plannerHoursLabel)),
+                  DropdownMenuItem(value: 1440, child: Text(strings.plannerDaysLabel)),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setDialogState(() => currentMultiplier = val);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+            ),
+            TextButton(
+              onPressed: () {
+                final int? val = int.tryParse(controller.text);
+                if (val != null) {
+                  Navigator.pop(context, val * currentMultiplier);
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(MaterialLocalizations.of(context).okButtonLabel),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedReminderMinutes = result;
+      });
+    }
   }
 }
 

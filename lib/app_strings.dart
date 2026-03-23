@@ -657,6 +657,21 @@ class AppStrings {
   String get dictationStopRecording =>
       _pick(en: 'Stop', fr: 'Arrêter', ar: 'إيقاف');
 
+  String get plannerCustomReminder =>
+      _pick(en: 'Custom...', fr: 'Personnalis\u00e9...', ar: 'مخصص...');
+
+  String get plannerCustomReminderPrompt =>
+      _pick(en: 'Enter minutes before due date', fr: 'Entrez les minutes avant l\'\u00e9ch\u00e9ance', ar: 'أدخل الدقائق قبل الموعد');
+
+  String get plannerMinutesLabel =>
+      _pick(en: 'minutes', fr: 'minutes', ar: 'دقيقة');
+
+  String get plannerHoursLabel =>
+      _pick(en: 'hours', fr: 'heures', ar: 'ساعات');
+
+  String get plannerDaysLabel =>
+      _pick(en: 'days', fr: 'jours', ar: 'أيام');
+
   String get dictationExpectedPassage =>
       _pick(en: 'Expected passage', fr: 'Texte attendu', ar: 'النص المتوقع');
 
