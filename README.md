@@ -14,8 +14,8 @@ Smart2 is an innovative solution designed to streamline various processes within
 
 *Refer to the architecture diagram above for a visual representation of the system's components and their interactions.*
 
-## Technology Stack
-- **Frontend:** React, Redux
-- **Backend:** Node.js, Express
-- **Database:** MongoDB
-- **Hosting:** AWS, Heroku
+## Used tools
+
+ **coding:** Google Antingravity 
+ **lenguages:** Flutter and Dart
+ **diagram:** lucid.app
