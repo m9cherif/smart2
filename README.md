@@ -8,13 +8,24 @@
   <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=28&pause=1000&color=36BCF7&center=true&vCenter=true&width=600&lines=APP+DEVELOPER;CYBERSECURITY+ENTHUSIAST;GAME+DEVELOPER" alt="Typing SVG" />
 </p>
 <h3 align="center">
-  ICT engineering student at Sup'Com, passionate about building impactful tech projects and exploring the world of CyberSecurity.
+  Smart Atudent Ai is an innovative solution designed to streamline various processes within organizations, enhancing productivity and efficiency. This project aims to provide a comprehensive platform that integrates multiple functionalities under one roof, making it easier for users to manage their tasks efficiently. 
+  
+  ## Features - **User Management:** Role-based access control, user registration, and profile management. 
+  
+ - **Task Management:** Create, assign, and track tasks with deadlines and priority levels.
+ - **Reports and Analytics:** Generate insights and reports to monitor progress and productivity.
+ - **Notification System:** Real-time alerts for task updates and new assignments.
+   
+  ## Architecture Diagram
+ - <img width="3520" height="3363" alt="Blank diagram" src="https://github.com/user-attachments/assets/3fda16e7-4d0d-4f4b-8fb3-18d7e8768e4f" />
+ 
+ - *Refer to the architecture diagram above for a visual representation of the system's components and their interactions.*
 </h3>
 
 ---
 
 <p align="center">
-  <img src="https://komarev.com/ghpvc/?username=zaydbf&label=Profile%20views&color=0e75b6&style=flat" alt="zaydbf" />
+  <img src="https://komarev.com/ghpvc/?username=m9cherif&label=Profile%20views&color=0e75b6&style=flat" alt="zaydbf" />
 </p>
 
 <p align="center">
