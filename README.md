@@ -25,24 +25,8 @@
 
 ---
 
-- 🌱 I’m currently learning **Everything**
-- My **sleep** schedule ??? Somewhere between “just one more **commit**” and fixing that last **bug** 🐞.... usually by the time the **sun** decides to show up 🌄
-
 ---
-<h3 align="center">Connect with me:</h3>
-<p align="center">
-  <a href="https://linkedin.com/in/zaydbenfadhel" target="_blank">
-    <img src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" height="30" width="40" />
-  </a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="https://fb.com/zayd.benfadhel" target="_blank">
-    <img src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/facebook.svg" height="30" width="40" />
-  </a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="https://medium.com/@xayd" target="_blank">
-    <img src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/medium.svg" height="30" width="40" />
-  </a>
-</p>
+
 
 
 ---
