@@ -10,7 +10,8 @@ Smart2 is an innovative solution designed to streamline various processes within
 - **Notification System:** Real-time alerts for task updates and new assignments.
 
 ## Architecture Diagram
-![Architecture Diagram](link-to-architecture-diagram)
+<img width="3520" height="3363" alt="Blank diagram" src="https://github.com/user-attachments/assets/3fda16e7-4d0d-4f4b-8fb3-18d7e8768e4f" />
+
 *Refer to the architecture diagram above for a visual representation of the system's components and their interactions.*
 
 ## Technology Stack
