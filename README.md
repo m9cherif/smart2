@@ -1,6 +1,5 @@
-# smart_student_ai
 
-                                                                 ** HI EVERYONE, I'M MOHAMED CHERIF, I AM FROM TUNISIA AND I AM AN APP DEVELOPER AND A GAME DEVELOPER**
+  **HI EVERYONE, I'M MOHAMED CHERIF, I AM FROM TUNISIA AND I AM AN APP DEVELOPER AND A GAME DEVELOPER**
 
 ## Project Overview
 Smart2 is an innovative solution designed to streamline various processes within organizations, enhancing productivity and efficiency. This project aims to provide a comprehensive platform that integrates multiple functionalities under one roof, making it easier for users to manage their tasks efficiently.
