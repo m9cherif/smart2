@@ -65,16 +65,15 @@
   &nbsp;&nbsp;&nbsp;
   <img src="https://www.vectorlogo.zone/logos/unity3d/unity3d-icon.svg" width="40" height="40" alt="Unity" />
   &nbsp;&nbsp;&nbsp;
-  <img src="https://image2url.com/r2/default/images/1774318556432-e8993c16-a10f-40d3-adb6-cc58db16d2cf.jpg" width="40" height="40" alt="flutter"/>
+  <img src="https://image2url.com/r2/default/images/1774318556432-e8993c16-a10f-40d3-adb6-cc58db16d2cf.jpg" width="40" height="40" alt="Visual Studio Code"/>
   &nbsp;&nbsp;&nbsp;
   <img src="https://image2url.com/r2/default/images/1774318656808-3a014133-35ca-4cf5-a234-7874de5ffa6b.jpg" width="40" height="40" alt="Google Antigravity"/>
   &nbsp;&nbsp;&nbsp;
-  <img src="" width="40" height="40" alt="flutter"/>
+  <img src="https://image2url.com/r2/default/images/1774319323089-54c257ad-d623-4828-ba5a-a18f4c81c662.png" width="40" height="40" alt="Dart"/>
   &nbsp;&nbsp;&nbsp;
-  <img src="" width="40" height="40" alt="flutter"/>
+  <img src="https://image2url.com/r2/default/images/1774319462414-f8f87fbd-b501-4d2d-8c23-e398bfcce0a3.png" width="40" height="40" alt="Android Studio"/>
   &nbsp;&nbsp;&nbsp;
-  <img src="" width="40" height="40" alt="flutter"/>
-  &nbsp;&nbsp;&nbsp;
+  <img src="https://image2url.com/r2/default/images/1774319534147-ddb3b672-17cd-4431-8a41-8d6bbdfd25f1.jpg" width="40" height="40" alt="flutter"/>
 </p>
 
 
